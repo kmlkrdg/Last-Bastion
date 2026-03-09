@@ -1,0 +1,4473 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LAST BASTION</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Oswald:wght@300;400;600;700&family=Special+Elite&display=swap');
+
+  :root {
+    --bg: #0a0c08;
+    --bg2: #0f1209;
+    --panel: #121509;
+    --border: #2a3018;
+    --border-bright: #4a5a22;
+    --green: #7ab32a;
+    --green-dim: #3d5a12;
+    --green-bright: #a8e040;
+    --red: #c43a2a;
+    --red-dim: #5a1a10;
+    --amber: #c4892a;
+    --amber-dim: #5a3d10;
+    --blue: #2a6a8a;
+    --text: #b8c890;
+    --text-dim: #5a6a40;
+    --text-bright: #d8e8a0;
+    --dirt: #3a2a18;
+    --grass: #1a2a0a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    height: 100dvh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* SCANLINE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* TOP STATUS BAR */
+  #topbar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border-bright);
+    padding: 6px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    position: relative;
+  }
+  #topbar::after {
+    content: '';
+    position: absolute;
+    bottom: -3px; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green-dim), var(--green), var(--green-dim), transparent);
+    opacity: 0.5;
+  }
+
+  .title-logo {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--green-bright);
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px var(--green);
+  }
+
+  .top-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+  }
+
+  .stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text);
+  }
+  .stat-pill .icon { font-size: 13px; }
+  .stat-pill .val { color: var(--green-bright); font-weight: bold; }
+
+  .day-badge {
+    background: var(--green-dim);
+    border: 1px solid var(--green);
+    padding: 2px 8px;
+    font-size: 10px;
+    color: var(--green-bright);
+    letter-spacing: 2px;
+  }
+
+  /* MAIN GAME AREA - now has left panel, map, right panel */
+  #game-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* LEFT PANEL */
+  #left-panel {
+    width: 190px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* MAP VIEW */
+  #map-view {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--grass);
+  }
+
+  #base-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* RIGHT PANEL */
+  #right-panel {
+    width: 190px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* SHARED PANEL STYLES */
+  .panel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 7px 4px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .panel-tab:last-child { border-right: none; }
+  .panel-tab.active { color: var(--green-bright); background: rgba(122,179,42,0.08); border-bottom: 2px solid var(--green); }
+  .panel-tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.03); }
+
+  .panel-section {
+    border-bottom: 1px solid var(--border);
+    padding: 8px;
+  }
+  .panel-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  /* LOG BAR AT BOTTOM */
+  #log-bar {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    height: 80px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  #log-bar::-webkit-scrollbar { width: 3px; }
+  #log-bar::-webkit-scrollbar-thumb { background: var(--green-dim); }
+  #event-log { padding: 2px 6px; }
+
+
+
+  /* SURVIVORS LIST */
+  #survivors-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+  }
+  #survivors-list::-webkit-scrollbar { width: 3px; }
+  #survivors-list::-webkit-scrollbar-track { background: var(--bg); }
+  #survivors-list::-webkit-scrollbar-thumb { background: var(--green-dim); }
+
+  .survivor-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 6px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .survivor-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--green);
+  }
+  .survivor-card:hover { border-color: var(--green); }
+  .survivor-card.infected::before { background: var(--red); }
+  .survivor-card.suspicious::before { background: var(--amber); }
+
+  .surv-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 12px;
+    color: var(--text-bright);
+    margin-bottom: 3px;
+  }
+  .surv-stats {
+    display: flex;
+    gap: 6px;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+  .surv-stat { display: flex; align-items: center; gap: 2px; }
+  .mini-bar {
+    width: 20px;
+    height: 4px;
+    background: var(--bg);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .mini-bar-fill { height: 100%; background: var(--green); border-radius: 1px; }
+  .mini-bar-fill.low { background: var(--red); }
+  .mini-bar-fill.mid { background: var(--amber); }
+
+  /* BOTTOM ACTION BAR */
+  #bottom-bar {
+    background: var(--panel);
+    border-top: 1px solid var(--border-bright);
+    padding: 8px 12px;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  #bottom-bar::-webkit-scrollbar { display: none; }
+
+  .action-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 8px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 60px;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+  .action-btn .btn-icon { font-size: 18px; }
+  .action-btn:hover, .action-btn.active {
+    border-color: var(--green-bright);
+    color: var(--green-bright);
+    background: var(--green-dim);
+    box-shadow: 0 0 10px rgba(122,179,42,0.2);
+  }
+  .action-btn.danger:hover {
+    border-color: var(--red);
+    color: var(--red);
+    background: var(--red-dim);
+  }
+
+  /* MODAL OVERLAY */
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 500;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+  }
+  #modal-overlay.show { display: flex; }
+
+  .modal-box {
+    background: var(--panel);
+    border: 1px solid var(--border-bright);
+    max-width: 380px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  .modal-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green-dim), var(--green-bright), var(--green-dim));
+  }
+
+  .modal-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .modal-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 18px;
+    color: var(--green-bright);
+    letter-spacing: 3px;
+  }
+  .modal-subtitle {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 3px;
+    letter-spacing: 1px;
+  }
+  .modal-close {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 26px; height: 26px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .modal-close:hover { border-color: var(--red); color: var(--red); }
+
+  .modal-body { padding: 16px; }
+
+  /* SURVIVOR DETAIL */
+  .surv-portrait {
+    width: 64px; height: 64px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    float: left;
+    margin-right: 12px;
+    margin-bottom: 8px;
+  }
+
+  .surv-detail-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 22px;
+    color: var(--text-bright);
+    letter-spacing: 2px;
+  }
+  .surv-detail-trait {
+    font-size: 10px;
+    color: var(--amber);
+    margin-top: 2px;
+    letter-spacing: 1px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--text-dim); letter-spacing: 1px; }
+  .stat-value { color: var(--text-bright); }
+  .stat-bar-wrap {
+    width: 80px;
+    height: 6px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .stat-bar-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+  .stat-bar-fill.red { background: var(--red); }
+  .stat-bar-fill.amber { background: var(--amber); }
+
+  .risk-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 10px;
+    margin: 12px 0;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  .risk-box .risk-title {
+    color: var(--amber);
+    font-family: 'Oswald', sans-serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .risk-item { color: var(--text-dim); display: flex; gap: 6px; }
+  .risk-item.danger { color: var(--red); }
+  .risk-item.warning { color: var(--amber); }
+  .risk-item.safe { color: var(--green); }
+
+  .decision-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .decision-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 12px 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .decision-btn .d-icon { font-size: 22px; }
+  .decision-btn:hover { transform: translateY(-1px); }
+  .decision-btn.accept { border-color: var(--green); }
+  .decision-btn.accept:hover { background: var(--green-dim); color: var(--green-bright); box-shadow: 0 4px 12px rgba(122,179,42,0.3); }
+  .decision-btn.quarantine { border-color: var(--blue); }
+  .decision-btn.quarantine:hover { background: #0a1a28; color: #5aaad0; }
+  .decision-btn.prison { border-color: var(--amber); }
+  .decision-btn.prison:hover { background: var(--amber-dim); color: var(--amber); }
+  .decision-btn.steal { border-color: #888; }
+  .decision-btn.steal:hover { background: #222; color: #ccc; }
+  .decision-btn.reject { border-color: #555; }
+  .decision-btn.reject:hover { background: #1a1a1a; color: #aaa; }
+  .decision-btn.execute { border-color: var(--red); }
+  .decision-btn.execute:hover { background: var(--red-dim); color: var(--red); box-shadow: 0 4px 12px rgba(196,58,42,0.3); }
+
+  /* GATE TIMER */
+  .gate-timer-section {
+    padding: 10px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .gate-timer-label { font-size: 9px; color: var(--text-dim); letter-spacing: 2px; margin-bottom: 5px; }
+  .gate-timer-bar { height: 6px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+  .gate-timer-fill { height: 100%; background: linear-gradient(90deg, var(--green-dim), var(--green-bright)); border-radius: 2px; transition: width 1s linear; }
+  .gate-countdown { font-size: 11px; color: var(--green-bright); margin-top: 4px; text-align: right; }
+
+  /* ROOMS */
+  .room-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .room-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .room-card:hover { border-color: var(--green); }
+  .room-card .room-icon { font-size: 20px; margin-bottom: 4px; }
+  .room-card .room-name { font-size: 9px; letter-spacing: 1px; color: var(--text-dim); }
+  .room-card .room-occupants { font-size: 11px; color: var(--text-bright); margin-top: 2px; }
+
+  /* NOTIFICATION */
+  #notification {
+    position: fixed;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel);
+    border: 1px solid var(--green-bright);
+    padding: 10px 20px;
+    font-size: 12px;
+    color: var(--green-bright);
+    z-index: 999;
+    letter-spacing: 2px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-align: center;
+    max-width: 300px;
+    box-shadow: 0 0 20px rgba(122,179,42,0.3);
+    pointer-events: none;
+  }
+  #notification.show { opacity: 1; }
+  #notification.danger-notif {
+    border-color: var(--red);
+    color: var(--red);
+    box-shadow: 0 0 20px rgba(196,58,42,0.3);
+  }
+
+  /* GATE QUEUE */
+  .gate-queue {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    padding: 6px;
+  }
+  .gate-person {
+    width: 32px; height: 32px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .gate-person:hover { border-color: var(--green-bright); transform: scale(1.1); }
+  .gate-person.infected { border-color: var(--red); }
+  .gate-person.suspicious { border-color: var(--amber); }
+  .gate-person .status-dot {
+    position: absolute;
+    bottom: -2px; right: -2px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    border: 1px solid var(--bg);
+  }
+  .gate-person.infected .status-dot { background: var(--red); }
+  .gate-person.suspicious .status-dot { background: var(--amber); }
+
+  /* ANIMATED FLICKER */
+  @keyframes flicker {
+    0%, 98%, 100% { opacity: 1; }
+    99% { opacity: 0.85; }
+  }
+  .title-logo { animation: flicker 5s infinite; }
+
+  @keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 5px rgba(122,179,42,0.3); }
+    50% { box-shadow: 0 0 15px rgba(122,179,42,0.6); }
+  }
+
+  .blink { animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* SCROLL AREAS */
+  .scroll-area { overflow-y: auto; }
+  .scroll-area::-webkit-scrollbar { width: 3px; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--green-dim); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 20px 10px;
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 2;
+  }
+  .empty-state .big { font-size: 28px; margin-bottom: 8px; }
+
+  /* INFO CHIPS */
+  .chip {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    margin: 2px;
+    color: var(--text-dim);
+  }
+  .chip.green { border-color: var(--green-dim); color: var(--green); }
+  .chip.red { border-color: var(--red-dim); color: var(--red); }
+  .chip.amber { border-color: var(--amber-dim); color: var(--amber); }
+
+  /* Inventory display */
+  .inv-row {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 5px;
+  }
+  .inv-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 3px 7px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* VIEW TABS */
+  .view-tabs { display:flex; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .view-tab {
+    flex:1; background:none; border:none; color:var(--text-dim);
+    font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:1px;
+    padding:7px 4px; cursor:pointer; border-right:1px solid var(--border); transition:all 0.15s; text-transform:uppercase;
+  }
+  .view-tab:last-child { border-right:none; }
+  .view-tab.active { color:var(--green-bright); background:rgba(122,179,42,0.08); border-bottom:2px solid var(--green); }
+  .view-tab:hover:not(.active) { color:var(--text); background:var(--bg2); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* RESOURCE BARS */
+  .resource-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 10px;
+  }
+  .resource-icon { font-size: 14px; width: 18px; text-align: center; }
+  .resource-name { width: 55px; color: var(--text-dim); letter-spacing: 1px; font-size: 9px; }
+  .resource-bar { flex: 1; height: 5px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+  .resource-bar-fill { height: 100%; background: var(--green); border-radius: 2px; }
+  .resource-val { font-size: 10px; color: var(--text-bright); min-width: 28px; text-align: right; }
+
+  /* LOG */
+  #event-log {
+    padding: 6px;
+    font-size: 10px;
+    line-height: 1.8;
+    color: var(--text-dim);
+    flex: 1;
+    overflow-y: auto;
+  }
+  #event-log::-webkit-scrollbar { width: 3px; }
+  #event-log::-webkit-scrollbar-thumb { background: var(--green-dim); }
+  .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(42,48,24,0.5); }
+  .log-entry .log-time { color: var(--green-dim); margin-right: 6px; }
+  .log-entry.log-danger { color: var(--red); }
+  .log-entry.log-warning { color: var(--amber); }
+  .log-entry.log-success { color: var(--green); }
+
+  /* SECTION DIVIDER */
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+    color: var(--text-dim);
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+  .section-divider::before, .section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* UPGRADE MODAL */
+  .upgrade-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 10px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .upgrade-info { flex: 1; }
+  .upgrade-name { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--text-bright); letter-spacing: 1px; }
+  .upgrade-desc { font-size: 10px; color: var(--text-dim); margin-top: 3px; }
+  .upgrade-cost { font-size: 10px; color: var(--amber); margin-top: 3px; }
+  .upgrade-btn {
+    background: var(--green-dim);
+    border: 1px solid var(--green);
+    color: var(--green-bright);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 7px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    letter-spacing: 1px;
+  }
+  .upgrade-btn:hover { background: var(--green); color: var(--bg); }
+  .upgrade-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* CLEARFIX */
+  .clearfix::after { content: ''; display: table; clear: both; }
+
+  /* ACTIVITY SYSTEM */
+  .activity-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .activity-card:hover { border-color: var(--green); }
+  .activity-card.active-task { border-color: var(--amber); }
+  .activity-card.locked { opacity: 0.45; cursor: not-allowed; }
+  .activity-card .act-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+  .activity-card .act-icon { font-size: 22px; flex-shrink: 0; }
+  .activity-card .act-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 13px;
+    color: var(--text-bright);
+    letter-spacing: 1px;
+    flex: 1;
+  }
+  .activity-card .act-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border: 1px solid var(--green-dim);
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+  .activity-card .act-badge.amber { border-color: var(--amber-dim); color: var(--amber); }
+  .activity-card .act-badge.red { border-color: var(--red-dim); color: var(--red); }
+  .activity-card .act-desc {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+  .activity-card .act-rewards {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .reward-chip {
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .reward-chip.pos { color: var(--green); }
+  .reward-chip.neg { color: var(--red); }
+
+  /* PROGRESS BAR on active task */
+  .task-progress-wrap {
+    margin-top: 7px;
+    height: 5px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .task-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+    border-radius: 2px;
+    transition: width 0.5s linear;
+  }
+  .task-time-left {
+    font-size: 9px;
+    color: var(--amber);
+    margin-top: 3px;
+    text-align: right;
+    letter-spacing: 1px;
+  }
+
+  /* FARM PLOTS */
+  .farm-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .farm-plot {
+    aspect-ratio: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 22px;
+    position: relative;
+    gap: 2px;
+  }
+  .farm-plot:hover { border-color: var(--green); }
+  .farm-plot .plot-label { font-size: 8px; color: var(--text-dim); letter-spacing: 1px; }
+  .farm-plot .plot-stage { font-size: 8px; color: var(--green-dim); }
+  .farm-plot.growing { border-color: var(--green-dim); background: #101a08; }
+  .farm-plot.ready { border-color: var(--green-bright); background: #152008; animation: pulse-green 1.5s infinite; }
+  .farm-plot.empty { border-style: dashed; }
+
+  /* ACTIVE TASK FLOATING BANNER */
+  #active-task-banner {
+    display: none;
+    background: var(--amber-dim);
+    border-top: 1px solid var(--amber);
+    padding: 5px 12px;
+    font-size: 10px;
+    color: var(--amber);
+    letter-spacing: 1px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+  }
+  #active-task-banner.show { display: flex; }
+  #active-task-banner .banner-progress {
+    flex: 1;
+    height: 4px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #active-task-banner .banner-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 2px;
+    transition: width 0.5s linear;
+  }
+  #active-task-banner .cancel-btn {
+    background: none;
+    border: 1px solid var(--amber-dim);
+    color: var(--amber);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  #active-task-banner .cancel-btn:hover { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+  /* BUILDING ASSIGNMENT CARDS */
+  .building-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .building-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: rgba(122,179,42,0.05);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .building-header:hover { background: rgba(122,179,42,0.1); }
+  .building-icon { font-size: 18px; }
+  .building-name { font-family: 'Oswald', sans-serif; font-size: 12px; color: var(--text-bright); flex:1; letter-spacing:1px; }
+  .building-badge { font-size: 9px; color: var(--text-dim); background: var(--bg); border: 1px solid var(--border); padding: 1px 5px; }
+  .building-badge.warn { border-color: var(--amber); color: var(--amber); }
+  .building-badge.ok { border-color: var(--green); color: var(--green); }
+  .building-slots {
+    padding: 6px 8px;
+  }
+  .assignment-slot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    margin-bottom: 3px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    font-size: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .assignment-slot:hover { border-color: var(--green-bright); }
+  .assignment-slot.empty { border-style: dashed; color: var(--text-dim); justify-content: center; }
+  .assignment-slot .slot-emoji { font-size: 14px; }
+  .assignment-slot .slot-name { flex:1; color: var(--text-bright); }
+  .assignment-slot .slot-skill { font-size: 9px; color: var(--text-dim); }
+  .assignment-slot .slot-score { font-size: 9px; font-weight:bold; }
+  .assignment-slot .unassign-btn { font-size: 9px; color: var(--red); padding: 1px 4px; border: 1px solid var(--red-dim); cursor:pointer; background:none; font-family:inherit; }
+
+  /* BARRACKS PERSON CARDS */
+  .barracks-person {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+  }
+  .barracks-person:last-child { border-bottom: none; }
+  .barracks-person-row1 { display:flex; align-items:center; gap:6px; }
+  .barracks-person-name { font-family:'Oswald',sans-serif; font-size:12px; color:var(--text-bright); flex:1; }
+  .barracks-person-loc { font-size:9px; color:var(--green-dim); }
+  .barracks-person-activity { font-size:10px; color:var(--text-dim); font-style:italic; padding-left:22px; line-height:1.4; }
+  .barracks-person-mood { font-size:9px; color:var(--text-dim); padding-left:22px; }
+
+  .prison-person {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    background: rgba(90,26,16,0.2);
+  }
+  .prison-person .pname { flex:1; color:var(--text-bright); }
+  .prison-person .escape-risk { font-size:9px; padding: 1px 4px; border:1px solid; }
+
+  .quarantine-person {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    background: rgba(10,26,40,0.3);
+  }
+  .quarantine-person .pname { flex:1; color:var(--text-bright); }
+
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+  }
+  .person-in-base:last-child { border-bottom: none; }
+  .person-in-base .emoji { font-size: 16px; }
+  .person-in-base .name { flex: 1; color: var(--text-bright); }
+  .person-in-base .role { color: var(--text-dim); font-size: 9px; }
+  .person-in-base .location { color: var(--green-dim); font-size: 9px; }
+
+  /* RELATIONSHIP CARDS */
+  .rel-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 8px;
+    margin-bottom: 6px;
+    font-size: 10px;
+    position: relative;
+  }
+  .rel-card.love { border-left: 3px solid #e05080; }
+  .rel-card.friend { border-left: 3px solid var(--green); }
+  .rel-card.enemy { border-left: 3px solid var(--red); }
+  .rel-card.tension { border-left: 3px solid var(--amber); }
+  .rel-card.family { border-left: 3px solid #8080e0; }
+  .rel-names { font-family: 'Oswald', sans-serif; font-size: 12px; color: var(--text-bright); }
+  .rel-type { font-size: 9px; color: var(--text-dim); margin-top: 2px; }
+  .rel-heart { position: absolute; right: 8px; top: 8px; font-size: 16px; }
+
+  /* SOCIAL STATUS */
+  .morale-bar-wrap {
+    height: 8px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 4px 0;
+  }
+  .morale-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s;
+  }
+  .social-alert {
+    background: var(--bg2);
+    border: 1px solid var(--amber);
+    padding: 7px 10px;
+    font-size: 10px;
+    color: var(--amber);
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .social-alert:hover { border-color: var(--green); }
+  .social-alert.danger-alert { border-color: var(--red); color: var(--red); }
+  .social-alert.crisis { border-color: var(--red); color: var(--red); animation: blink 0.5s step-end infinite; }
+
+  /* MISSION CARDS */
+  .mission-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mission-card:hover { border-color: var(--green); }
+  .mission-card.active { border-color: var(--amber); }
+  .mission-card.completed { opacity: 0.5; cursor: default; border-style: dashed; }
+  .mission-header { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .mission-icon { font-size: 20px; flex-shrink: 0; }
+  .mission-name { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--text-bright); flex: 1; }
+  .mission-timer { font-size: 9px; color: var(--amber); }
+  .mission-desc { font-size: 10px; color: var(--text-dim); margin-bottom: 5px; }
+  .mission-crew { font-size: 9px; color: var(--green-dim); }
+
+  /* NIGHT RAID */
+  .raid-wave {
+    background: var(--bg2);
+    border: 1px solid var(--red-dim);
+    padding: 10px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+  .raid-result { font-family: 'Oswald', sans-serif; font-size: 16px; letter-spacing: 2px; margin-bottom: 8px; }
+  .raid-result.victory { color: var(--green-bright); }
+  .raid-result.defeat { color: var(--red); }
+  .raid-result.partial { color: var(--amber); }
+
+  /* CHIP STYLES */
+  .chip {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    border-radius: 1px;
+    margin-right: 4px;
+  }
+  .chip.red { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+  .chip.green { background: var(--green-dim); color: var(--green-bright); border: 1px solid var(--green); }
+  .chip.amber { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+  .chip.blue { background: #0a1a28; color: #5aaad0; border: 1px solid #2a6a8a; }
+  .chip.pink { background: #280a18; color: #e05080; border: 1px solid #803050; }
+
+  /* PERSON DETAIL IN SOCIAL */
+  .person-rel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .person-rel-row:hover { background: rgba(122,179,42,0.05); }
+  .person-rel-row .pname { flex: 1; color: var(--text-bright); }
+  .person-rel-row .pstatus { font-size: 9px; color: var(--text-dim); }
+
+  /* INV ROW */
+  .inv-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .inv-item { background: var(--bg2); border: 1px solid var(--border); padding: 3px 7px; font-size: 10px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="title-logo">LAST BASTION</div>
+  <div class="top-stats">
+    <div class="stat-pill">
+      <span class="icon">🧑</span>
+      <span id="pop-count" class="val">0</span><span style="color:var(--text-dim)">/</span><span id="pop-max" class="val">7</span>
+    </div>
+    <div class="stat-pill">
+      <span class="icon">🍖</span>
+      <span id="food-count" class="val">20</span>
+    </div>
+    <div class="stat-pill">
+      <span class="icon">🔧</span>
+      <span id="parts-count" class="val">15</span>
+    </div>
+    <div class="stat-pill">
+      <span class="icon">💊</span>
+      <span id="meds-count" class="val">8</span>
+    </div>
+  </div>
+  <div class="day-badge" id="day-badge">GÜN 1</div>
+</div>
+
+<!-- MAIN GAME AREA -->
+<div id="game-area">
+
+  <!-- LEFT PANEL: KAPI + NÜFUS -->
+  <div id="left-panel">
+    <div class="view-tabs">
+      <button class="view-tab active" onclick="switchLeftTab('gate',this)">🚪KAPI</button>
+      <button class="view-tab" onclick="switchLeftTab('people',this)">🧑NÜFUS</button>
+    </div>
+
+    <!-- GATE TAB (left) -->
+    <div id="ltab-gate" class="tab-content active scroll-area" style="flex:1;">
+      <div style="padding:8px;">
+        <div class="panel-title">⏱ SONRAKİ SURVIVOR</div>
+        <div class="gate-timer-section">
+          <div class="gate-timer-label">GELİŞ ZAMANLAYICI</div>
+          <div class="gate-timer-bar"><div class="gate-timer-fill" id="gate-timer-fill" style="width:0%"></div></div>
+          <div class="gate-countdown" id="gate-countdown">--:--</div>
+        </div>
+        <div class="panel-title">🚪 KAPIDA (<span id="gate-count">0</span>/<span id="gate-max">7</span>)</div>
+        <div class="gate-queue" id="gate-queue">
+          <div class="empty-state"><div class="big">🚪</div><div>Henüz kimse yok<span class="blink">_</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PEOPLE TAB (left) -->
+    <div id="ltab-people" class="tab-content scroll-area" style="flex:1;">
+      <div style="padding:8px;">
+        <div class="panel-title">📦 KAYNAKLAR</div>
+        <div class="resource-item">
+          <span class="resource-icon">🍖</span><span class="resource-name">YİYECEK</span>
+          <div class="resource-bar"><div class="resource-bar-fill" id="rb-food"></div></div>
+          <span class="resource-val" id="rv-food">0</span>
+        </div>
+        <div class="resource-item">
+          <span class="resource-icon">🔧</span><span class="resource-name">PARÇA</span>
+          <div class="resource-bar"><div class="resource-bar-fill" id="rb-parts"></div></div>
+          <span class="resource-val" id="rv-parts">0</span>
+        </div>
+        <div class="resource-item">
+          <span class="resource-icon">💊</span><span class="resource-name">İLAÇ</span>
+          <div class="resource-bar"><div class="resource-bar-fill" id="rb-meds"></div></div>
+          <span class="resource-val" id="rv-meds">0</span>
+        </div>
+        <div class="resource-item">
+          <span class="resource-icon">🔋</span><span class="resource-name">ENERJİ</span>
+          <div class="resource-bar"><div class="resource-bar-fill" id="rb-energy"></div></div>
+          <span class="resource-val" id="rv-energy">0</span>
+        </div>
+        <div class="resource-item">
+          <span class="resource-icon">🪙</span><span class="resource-name">PARA</span>
+          <div class="resource-bar"><div class="resource-bar-fill" id="rb-caps"></div></div>
+          <span class="resource-val" id="rv-caps">0</span>
+        </div>
+        <div class="section-divider">NÜFUS</div>
+        <div id="base-people-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map-view">
+    <canvas id="base-canvas"></canvas>
+  </div>
+
+  <!-- RIGHT PANEL: BİNALAR + İŞLER + SOSYAL -->
+  <div id="right-panel">
+    <div class="view-tabs">
+      <button class="view-tab active" onclick="switchRightTab('buildings',this)">🏛️BİNA</button>
+      <button class="view-tab" onclick="switchRightTab('activities',this)" id="tab-btn-activities">⚒İŞLER</button>
+      <button class="view-tab" onclick="switchRightTab('social',this)" id="tab-btn-social">❤️SOS</button>
+    </div>
+
+    <!-- BUILDINGS TAB (right) -->
+    <div id="rtab-buildings" class="tab-content active scroll-area" style="flex:1;">
+      <div style="padding:8px;">
+        <div id="building-assignments"></div>
+      </div>
+    </div>
+
+    <!-- ACTIVITIES TAB (right) -->
+    <div id="rtab-activities" class="tab-content scroll-area" style="flex:1;">
+      <div style="padding:8px;">
+        <div class="panel-title">⚒ ÜS AKTİVİTELERİ</div>
+        <div id="activity-list"></div>
+        <div class="section-divider">ÇIFTLIK</div>
+        <div id="farm-section"></div>
+      </div>
+    </div>
+
+    <!-- SOCIAL TAB (right) -->
+    <div id="rtab-social" class="tab-content scroll-area" style="flex:1;">
+      <div style="padding:8px;">
+        <div class="panel-title">❤️ İLİŞKİLER & SOSYAL</div>
+        <div id="social-status-bar" style="margin-bottom:8px;"></div>
+        <div id="social-alerts" style="margin-bottom:8px;"></div>
+        <div id="relationships-list"></div>
+        <div class="section-divider">GÖREVLER</div>
+        <div id="missions-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOG BAR AT BOTTOM (above action bar) -->
+<div id="log-bar">
+  <div id="event-log"></div>
+</div>
+
+
+<!-- ACTIVE TASK BANNER -->
+<div id="active-task-banner">
+  <span id="banner-text">⚒ Görev aktif</span>
+  <div class="banner-progress"><div class="banner-fill" id="banner-fill"></div></div>
+  <span id="banner-time">--:--</span>
+  <button class="cancel-btn" onclick="cancelTask()">İPTAL</button>
+</div>
+
+<!-- BOTTOM ACTION BAR -->
+<div id="bottom-bar">
+  <button class="action-btn" onclick="showUpgrades()">
+    <span class="btn-icon">⬆️</span>
+    GELİŞTİR
+  </button>
+  <button class="action-btn" onclick="showGateModal()">
+    <span class="btn-icon">🚪</span>
+    KAPI
+  </button>
+  <button class="action-btn" onclick="showBaseModal()">
+    <span class="btn-icon">🗺️</span>
+    ÜS
+  </button>
+  <button class="action-btn" id="night-raid-btn" onclick="showNightRaidModal()" style="display:none;">
+    <span class="btn-icon">🌙</span>
+    BASKIN!
+  </button>
+  <button class="action-btn" onclick="skipTime(300)" style="border-color:#555;font-size:9px;">
+    <span class="btn-icon">⏩</span>
+    +5dk
+  </button>
+  <button class="action-btn" onclick="skipTime(3600)" style="border-color:#555;font-size:9px;">
+    <span class="btn-icon">⏩</span>
+    +1sa
+  </button>
+  <button class="action-btn" onclick="advanceDay()">
+    <span class="btn-icon">⏭️</span>
+    GÜN BİTİR
+  </button>
+</div>
+
+<!-- SURVIVOR DECISION MODAL -->
+<div id="modal-overlay">
+  <div class="modal-box" id="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modal-title">SURVIVOR</div>
+        <div class="modal-subtitle" id="modal-subtitle">KARAR VER</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- NOTIFICATION -->
+<div id="notification"></div>
+
+<script>
+// ==================== GAME STATE ====================
+const STATE = {
+  day: 1,
+  time: 0,
+  resources: { food: 80, parts: 50, meds: 25, energy: 60, caps: 40 },
+  base: {
+    maxPop: 12,
+    currentPop: 0,
+    rooms: { barracks: 0, clinic: false, quarantine: 0, workshop: false, prison: 0 },
+    upgrades: {
+      maxPop: 0,
+      clinic: true,
+      workshop: true,
+      walls: 1,
+      solar: 1,
+      farm: true,
+      security: true,   // emniyet binası
+      management: true, // yönetim binası
+    },
+    // Building assignments: buildingId -> [personId, ...]
+    assignments: {
+      clinic: [],       // tıp skoru en yüksek
+      workshop: [],     // mühendislik
+      farm: [],         // çiftçilik
+      security: [],     // savaş skoru - emniyet/hapishane
+      management: [],   // sosyal skoru - yönetim
+      gate: [],         // kapı nöbeti - savaş + mühendislik
+    }
+  },
+  gate: {
+    queue: [],
+    maxQueue: 7,
+    timerMax: 3600,
+    timer: 3600,
+    timerProgress: 0,
+  },
+  people: [],
+  quarantined: [],
+  imprisoned: [],
+  day_log: [],
+  total_accepted: 0,
+  total_rejected: 0,
+  total_executed: 0,
+};
+
+// ==================== DATA ====================
+// NAMES are now in generateSurvivor section above
+const TRAITS = ['DOKTOR','ASKER','MÜHENDİS','ÇIFTÇI','AŞÇI','NÖBETÇI','GÜVENLİK','KAYNAK TOPLAYICI','ÇOCUk','YAŞLI','HAMİLE','YARALAMA','TEHLİKELİ','PARANOYAK','GÜÇLÜ','ZAYIF','HASTALIKH','İYİMSER','KARAMSAR','GİZEMLİ'];
+const EMOJIS_M = ['👨','👱','🧔','👴','🧑'];
+const EMOJIS_F = ['👩','👱‍♀️','🧕','👵','🧑'];
+const ITEM_NAMES = ['İlaç x2','Yiyecek x5','Silah','Parça x3','Harita','Su x4','Pil x2','Kap Parası x5','Bıçak','Radyo'];
+
+// ==================== UTILITIES ====================
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+// ==================== SKILL LABEL HELPERS ====================
+function healthLabel(v) {
+  if (v >= 90) return 'Turp gibi';
+  if (v >= 75) return 'Sağlıklı';
+  if (v >= 55) return 'İyi hissediyor';
+  if (v >= 40) return 'Bitkin';
+  if (v >= 25) return 'Yorgun';
+  if (v >= 10) return 'Yatalak';
+  return 'Can çekişiyor';
+}
+function combatLabel(v) {
+  if (v >= 90) return randFrom(['Terminatör','Rambo','İntikamcı','Savaş makinesi']);
+  if (v >= 70) return randFrom(['Keskin nişancı','Tecrübeli','Savaşçı']);
+  if (v >= 45) return randFrom(['Avcı','Kolcu','Deneyimli']);
+  if (v >= 20) return randFrom(['Acemi','Kalkan taşıyıcı']);
+  return randFrom(['Çaylak','Paçoz','Kaçak']);
+}
+function medicalLabel(v) {
+  if (v >= 85) return randFrom(['Uzman cerrah','Baş doktor','Klinik şefi']);
+  if (v >= 65) return randFrom(['Doktor','Tıp uzmanı','Hekim']);
+  if (v >= 40) return randFrom(['Sağlıkçı','Hemşire','Sargıcı']);
+  if (v >= 15) return randFrom(['İlk yardımcı','Acemi bakıcı']);
+  return randFrom(['Cahil','Bilgisiz','Doktordan kaçar']);
+}
+function workshopLabel(v) {
+  if (v >= 85) return randFrom(['Mühendis','Usta tamirci','Şef mühendis']);
+  if (v >= 65) return randFrom(['Teknisyen','Uzman','Yapımcı']);
+  if (v >= 40) return randFrom(['Kalfa','Çırak usta','El becerikli']);
+  if (v >= 15) return randFrom(['Çırak','Acemi usta']);
+  return randFrom(['Cahil','İki sol eli var','Çiftçi']);
+}
+function socialLabel(v) {
+  if (v >= 85) return randFrom(['Lider','Karizmatik','İlham veren']);
+  if (v >= 65) return randFrom(['Sosyal','Diplomatik','Uyumlu']);
+  if (v >= 40) return randFrom(['Geçimli','Ortalama','Sessiz']);
+  if (v >= 15) return randFrom(['İçine kapanık','Asosyal']);
+  return randFrom(['Kavgacı','Provokateur','Kışkırtıcı']);
+}
+
+// Activity/mood phrases for barracks display
+const ACTIVITY_PHRASES = [
+  p => `${p.emoji} <b>${p.name}</b> ${randFrom(['çorba karıştırıyor.','depo düzenliyor.','kitap okuyor.','uyukluyor.','yemek pişiriyor.'])}`,
+  p => `${p.emoji} <b>${p.name}</b> ${randFrom(['bir köşede sigara içiyor.','duvara yaslanmış düşünüyor.','şarkı mırıldanıyor.','pencereden dışarı bakıyor.'])}`,
+  p => `${p.emoji} <b>${p.name}</b> ${p.spouseId ? 'sevgilisiyle fısıldaşıyor.' : p.childrenIds&&p.childrenIds.length>0 ? 'çocuğuyla oynuyor.' : 'yalnız oturup harita inceliyor.'}`,
+];
+const MOOD_PHRASES = {
+  high: ['neşeli görünüyor','mutlu hissediyor','enerjik','gülümsüyor'],
+  mid: ['yorgun ama ayakta','sakin','düşünceli','sessiz'],
+  low: ['asık suratlı','mutsuz görünüyor','sinirli','gergin'],
+  critical: ['çökmüş hissediyor','derin bir hüzün içinde','neredeyse pes etti'],
+};
+function moodPhrase(p) {
+  const h = p.happiness || 50;
+  if (h >= 70) return randFrom(MOOD_PHRASES.high);
+  if (h >= 45) return randFrom(MOOD_PHRASES.mid);
+  if (h >= 20) return randFrom(MOOD_PHRASES.low);
+  return randFrom(MOOD_PHRASES.critical);
+}
+
+function getAssignedBuilding(personId) {
+  const assignments = STATE.base.assignments;
+  for (const [building, ids] of Object.entries(assignments)) {
+    if (ids.includes(String(personId)) || ids.includes(personId)) return building;
+  }
+  return null;
+}
+
+const BUILDING_LABELS = {
+  clinic: { icon: '🔬', name: 'Klinik', skill: 'medical' },
+  workshop: { icon: '⚙️', name: 'Atölye', skill: 'workshop' },
+  farm: { icon: '🌾', name: 'Çiftlik', skill: 'farming' },
+  security: { icon: '🚔', name: 'Emniyet', skill: 'combat' },
+  management: { icon: '🏛️', name: 'Yönetim', skill: 'social' },
+  gate: { icon: '🚪', name: 'Kapı Nöbeti', skill: 'combat' },
+};
+
+function assignPersonToBuilding(personId, building) {
+  const pid = String(personId);
+  // Remove from all buildings first
+  Object.keys(STATE.base.assignments).forEach(b => {
+    STATE.base.assignments[b] = STATE.base.assignments[b].filter(id => String(id) !== pid);
+  });
+  if (building) {
+    STATE.base.assignments[building].push(pid);
+  }
+}
+
+
+
+const NAMES_M = ['Mehmet','Ali','Hasan','Osman','Murat','Emre','Burak','Kaan','Tarık','Can','Cem','Bora','Volkan','Efe','Tuna','Barış','Umut','Furkan','Alp','Serkan'];
+const NAMES_F = ['Ayşe','Zeynep','Fatma','Elif','Leyla','Ceren','Selin','Pınar','Gül','Yıldız','Aslı','İrem','Naz','Esra','Merve','Dila','Ece','Beyza','Su','Deniz'];
+const NAMES = [...NAMES_M, ...NAMES_F];
+
+function generateSurvivor() {
+  const male = Math.random() > 0.45;
+  const namePool = male ? NAMES_M : NAMES_F;
+  const name = randFrom(namePool);
+  const emoji = randFrom(male ? EMOJIS_M : EMOJIS_F);
+  const trait = randFrom(TRAITS);
+
+  let health = randInt(30, 100);
+  let infected = false;
+  let suspicious = false;
+  let danger = 0;
+
+  if (trait === 'HASTALIIKH' || trait === 'YARALAMA') { health = randInt(10, 50); }
+  if (Math.random() < 0.2) { infected = true; health = randInt(20, 70); }
+  if (trait === 'TEHLİKELİ' || trait === 'PARANOYAK') { suspicious = true; danger = randInt(30, 80); }
+  if (!suspicious && Math.random() < 0.1) { suspicious = true; danger = randInt(10, 40); }
+
+  const skills = {
+    combat: randInt(0, 100),
+    medical: trait === 'DOKTOR' ? randInt(60,100) : randInt(0, 50),
+    engineering: trait === 'MÜHENDİS' ? randInt(60,100) : randInt(0, 50),
+    farming: trait === 'ÇIFTÇI' ? randInt(60,100) : randInt(0, 50),
+    social: trait === 'GÜVENLİK' || trait === 'NÖBETÇI' ? randInt(40,80) : randInt(0, 100),
+    workshop: trait === 'MÜHENDİS' ? randInt(60,100) : randInt(0, 60),
+    morale: randInt(0, 100),
+  };
+
+  const items = [];
+  const itemCount = randInt(0, 3);
+  for (let i = 0; i < itemCount; i++) items.push(randFrom(ITEM_NAMES));
+
+  const foodNeeded = trait === 'ÇOCUk' ? 0.5 : trait === 'HAMİLE' ? 2 : 1;
+  const age = trait === 'ÇOCUk' ? randInt(5,14) : trait === 'YAŞLI' ? randInt(60,80) : randInt(18,55);
+
+  // Personality traits affecting social interactions
+  const personalities = ['UYUMLU','SALDIRGAN','ÇEKİNGEN','KARİZMATİK','ÇALIŞKAN','TEMBEL','KIRISKAN','NEŞELİ'];
+  const personality = randFrom(personalities);
+
+  return {
+    id: Date.now() + Math.random(),
+    name, emoji, trait, health, infected, suspicious, danger,
+    skills, items, foodNeeded, male, age,
+    personality,
+    location: 'KAPI',
+    daysInBase: 0,
+    happiness: randInt(30,70),  // 0-100
+    partnerId: null,            // romantic partner id
+    spouseId: null,
+    childrenIds: [],
+    pregnantDays: 0,            // >0 = pregnant
+    enemyIds: [],
+    friendIds: [],
+    onMission: null,            // mission id if away
+    isChild: trait === 'ÇOCUk',
+  };
+}
+
+// ==================== RENDERING ====================
+const canvas = document.getElementById('base-canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const mapView = document.getElementById('map-view');
+  canvas.width = mapView.offsetWidth;
+  canvas.height = mapView.offsetHeight;
+  drawBase();
+}
+
+function drawBase() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background - dirt/grass
+  ctx.fillStyle = '#111508';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(40,60,20,0.3)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 30) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 30) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  const cx = W / 2, cy = H / 2;
+
+  // OUTER WALL
+  ctx.strokeStyle = '#3a5018';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(cx - 90, cy - 70, 180, 140);
+  ctx.strokeStyle = '#2a3a10';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 94, cy - 74, 188, 148);
+
+  // Wall fill
+  ctx.fillStyle = 'rgba(30,40,15,0.6)';
+  ctx.fillRect(cx - 90, cy - 70, 180, 140);
+
+  // GATE (south)
+  ctx.fillStyle = '#1a2a08';
+  ctx.fillRect(cx - 18, cy + 60, 36, 14);
+  ctx.strokeStyle = '#5a8020';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cx - 18, cy + 60, 36, 14);
+  // Gate icon
+  ctx.fillStyle = '#7ab32a';
+  ctx.font = '16px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🚪', cx, cy + 72);
+
+  // MAIN BUILDING
+  ctx.fillStyle = '#1e2a10';
+  ctx.strokeStyle = '#4a6520';
+  ctx.lineWidth = 2;
+  ctx.fillRect(cx - 45, cy - 40, 90, 65);
+  ctx.strokeRect(cx - 45, cy - 40, 90, 65);
+
+  // Building label
+  ctx.fillStyle = '#5a7a30';
+  ctx.font = '8px Share Tech Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('ANA BİNA', cx, cy - 28);
+
+  // Roof detail
+  ctx.fillStyle = '#2a3a18';
+  ctx.fillRect(cx - 40, cy - 38, 80, 6);
+
+  // BARRACKS
+  drawRoom(ctx, cx - 75, cy - 55, 22, 18, '🏠', 'BARAKALAR');
+
+  // QUARANTINE
+  drawRoom(ctx, cx + 52, cy - 55, 26, 20, '🔒', 'KAR');
+
+  // WORKSHOP (locked if not built)
+  if (STATE.base.upgrades.workshop) {
+    drawRoom(ctx, cx - 75, cy + 20, 26, 22, '⚙️', 'ATÖLYE');
+  } else {
+    drawLockedRoom(ctx, cx - 75, cy + 20, 26, 22);
+  }
+
+  // CLINIC (locked if not built)
+  if (STATE.base.upgrades.clinic) {
+    drawRoom(ctx, cx + 52, cy + 15, 26, 22, '🔬', 'KLİNİK');
+  } else {
+    drawLockedRoom(ctx, cx + 52, cy + 15, 26, 22);
+  }
+
+  // PEOPLE dots
+  STATE.people.forEach((p, i) => {
+    const px = cx - 30 + (i % 5) * 14;
+    const py = cy - 20 + Math.floor(i / 5) * 14;
+    ctx.fillStyle = p.infected ? '#c43a2a' : '#7ab32a';
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // QUARANTINED people
+  STATE.quarantined.forEach((p, i) => {
+    ctx.fillStyle = '#2a6a8a';
+    ctx.beginPath();
+    ctx.arc(cx + 58 + (i % 3) * 8, cy - 48 + Math.floor(i / 3) * 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // IMPRISONED people  
+  STATE.imprisoned.forEach((p, i) => {
+    ctx.fillStyle = '#c4892a';
+    ctx.beginPath();
+    ctx.arc(cx - 65 + (i % 3) * 8, cy - 48 + Math.floor(i / 3) * 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Gate queue dots
+  STATE.gate.queue.forEach((p, i) => {
+    const gx = cx - (STATE.gate.queue.length * 8) / 2 + i * 16;
+    const gy = cy + 88;
+    ctx.fillStyle = p.infected ? '#c43a2a' : p.suspicious ? '#c4892a' : '#7ab32a';
+    ctx.beginPath();
+    ctx.arc(gx, gy, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Small emoji
+    ctx.font = '10px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.emoji, gx, gy - 7);
+  });
+
+  // Defense rating
+  const defense = 30 + STATE.base.upgrades.walls * 15;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(4, H - 20, 80, 16);
+  ctx.fillStyle = '#3d5a12';
+  ctx.font = '9px Share Tech Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('SAVUNMA: ' + defense + '%', 8, H - 8);
+}
+
+function drawRoom(ctx, x, y, w, h, icon, label) {
+  ctx.fillStyle = '#182210';
+  ctx.strokeStyle = '#3a5020';
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+  ctx.font = '9px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(icon, x + w/2, y + h/2 + 2);
+}
+
+function drawLockedRoom(ctx, x, y, w, h) {
+  ctx.fillStyle = '#0a0c08';
+  ctx.strokeStyle = '#1a2010';
+  ctx.lineWidth = 1;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#2a3018';
+  ctx.font = '9px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🔒', x + w/2, y + h/2 + 2);
+}
+
+// ==================== UI UPDATES ====================
+function updateUI() {
+  document.getElementById('pop-count').textContent = STATE.people.length + STATE.quarantined.length + STATE.imprisoned.length;
+  document.getElementById('pop-max').textContent = STATE.base.maxPop;
+  document.getElementById('food-count').textContent = Math.floor(STATE.resources.food);
+  document.getElementById('parts-count').textContent = Math.floor(STATE.resources.parts);
+  document.getElementById('meds-count').textContent = Math.floor(STATE.resources.meds);
+  document.getElementById('day-badge').textContent = 'GÜN ' + STATE.day;
+
+  // Resources in base tab
+  const maxFood = 50, maxParts = 50, maxMeds = 30, maxEnergy = 50, maxCaps = 100;
+  const setRes = (id, val, max) => {
+    const bar = document.getElementById('rb-' + id);
+    const label = document.getElementById('rv-' + id);
+    if (bar) bar.style.width = clamp(val / max * 100, 0, 100) + '%';
+    if (label) label.textContent = Math.floor(val);
+  };
+  setRes('food', STATE.resources.food, maxFood);
+  setRes('parts', STATE.resources.parts, maxParts);
+  setRes('meds', STATE.resources.meds, maxMeds);
+  setRes('energy', STATE.resources.energy, maxEnergy);
+  setRes('caps', STATE.resources.caps, maxCaps);
+
+  // Gate queue
+  const queueEl = document.getElementById('gate-queue');
+  document.getElementById('gate-count').textContent = STATE.gate.queue.length;
+  document.getElementById('gate-max').textContent = STATE.gate.maxQueue;
+
+  if (STATE.gate.queue.length === 0) {
+    queueEl.innerHTML = `<div class="empty-state"><div class="big">🚪</div><div>Henüz kimse yok<br>bekleniyor<span class="blink">_</span></div></div>`;
+  } else {
+    queueEl.innerHTML = STATE.gate.queue.map(p => `
+      <div class="gate-person ${p.infected ? 'infected' : p.suspicious ? 'suspicious' : ''}" onclick="showSurvivorDecision('${p.id}')">
+        ${p.emoji}
+        <div class="status-dot"></div>
+      </div>
+    `).join('');
+  }
+
+  // Base people list — rich barracks view
+  renderBasePeopleList();
+  renderBuildingAssignments();
+
+  drawBase();
+}
+
+// ==================== TIMER ====================
+let lastTick = Date.now();
+
+function gameTick() {
+  const now = Date.now();
+  const dt = (now - lastTick) / 1000; // seconds
+  lastTick = now;
+
+  STATE.gate.timer -= dt;
+  if (STATE.gate.timer <= 0) {
+    STATE.gate.timer = STATE.gate.timerMax;
+    spawnSurvivor();
+  }
+
+  // Activity & farm ticks
+  taskTick(dt);
+  farmTick(dt);
+
+  // Refresh activity panel every 2s
+  STATE._actRefresh = (STATE._actRefresh || 0) + dt;
+  if (STATE._actRefresh > 2) { STATE._actRefresh = 0; renderActivities(); }
+
+  const progress = 1 - (STATE.gate.timer / STATE.gate.timerMax);
+  document.getElementById('gate-timer-fill').style.width = (progress * 100) + '%';
+
+  const remaining = Math.ceil(STATE.gate.timer);
+  const m = Math.floor(remaining / 60).toString().padStart(2,'0');
+  const s = (remaining % 60).toString().padStart(2,'0');
+  document.getElementById('gate-countdown').textContent = m + ':' + s;
+
+  // Check training completion
+  checkTrainingCompletion();
+
+  requestAnimationFrame(gameTick);
+}
+
+function spawnSurvivor() {
+  if (STATE.gate.queue.length >= STATE.gate.maxQueue) {
+    // Queue full, someone leaves
+    const leaving = STATE.gate.queue.shift();
+    addLog(`${leaving.name} kapıda beklemekten vazgeçti ve ayrıldı.`, 'warning');
+    showNotification('Biri ayrıldı: ' + leaving.name, false);
+  }
+  const surv = generateSurvivorWithLowHealth();
+  STATE.gate.queue.push(surv);
+  addLog(`Yeni survivor kapıda: ${surv.name} [${surv.trait}]`, surv.infected ? 'danger' : surv.suspicious ? 'warning' : 'success');
+  showNotification('🚨 Yeni survivor: ' + surv.name, false);
+  updateUI();
+
+  // Pulse gate tab
+  document.querySelector('.view-tab').style.color = 'var(--green-bright)';
+  setTimeout(() => { document.querySelector('.view-tab').style.color = ''; }, 2000);
+}
+
+// ==================== SURVIVOR DECISION ====================
+function skillBar(label, val, labelFn, colorOverride) {
+  const pct = clamp(val, 0, 100);
+  const color = colorOverride || (pct >= 65 ? 'var(--green)' : pct >= 35 ? 'var(--amber)' : 'var(--red)');
+  const sublabel = labelFn ? labelFn(val) : '';
+  return `
+    <div class="stat-row">
+      <span class="stat-label">${label}</span>
+      <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <span class="stat-value">${val}</span>
+      ${sublabel ? `<span style="font-size:9px;color:var(--text-dim);margin-left:4px;font-style:italic">(${sublabel})</span>` : ''}
+    </div>`;
+}
+
+function showSurvivorDecision(id) {
+  const surv = STATE.gate.queue.find(p => String(p.id) === String(id));
+  if (!surv) return;
+
+  const totalPop = STATE.people.length + STATE.quarantined.length + STATE.imprisoned.length;
+  const atMaxPop = totalPop >= STATE.base.maxPop;
+
+  const risks = [];
+  if (surv.infected) risks.push({ text: '⚠️ ENFEKSİYON belirtileri var — ÇOK YÜKSEK risk', cls: 'danger' });
+  if (surv.suspicious) risks.push({ text: `⚠️ Şüpheli davranış (Tehlike: ${surv.danger}%)`, cls: surv.danger > 50 ? 'danger' : 'warning' });
+  if (surv.health < 30) risks.push({ text: '⚠️ Kritik sağlık — ilaç gerekebilir', cls: 'warning' });
+  if (surv.trait === 'TEHLİKELİ') risks.push({ text: '⚠️ Tehlikeli geçmiş', cls: 'danger' });
+  if (surv.trait === 'HAMİLE') risks.push({ text: '⚠️ Hamile — yüksek kaynak tüketimi', cls: 'warning' });
+
+  const benefits = [];
+  if (surv.skills.medical >= 60) benefits.push({ text: `✓ ${medicalLabel(surv.skills.medical)} — klinik için değerli`, cls: 'safe' });
+  if (surv.skills.workshop >= 60) benefits.push({ text: `✓ ${workshopLabel(surv.skills.workshop)} — atölye için değerli`, cls: 'safe' });
+  if (surv.skills.combat >= 60) benefits.push({ text: `✓ ${combatLabel(surv.skills.combat)} — emniyet için değerli`, cls: 'safe' });
+  if (surv.skills.farming >= 60) benefits.push({ text: `✓ İyi çiftçi — yiyecek üretimi`, cls: 'safe' });
+  if (surv.skills.social >= 65) benefits.push({ text: `✓ ${socialLabel(surv.skills.social)} — yönetim için`, cls: 'safe' });
+  if (surv.items.length > 0) benefits.push({ text: `✓ Yanında ${surv.items.length} eşya var`, cls: 'safe' });
+
+  const hColor = surv.health > 60 ? 'var(--green)' : surv.health > 30 ? 'var(--amber)' : 'var(--red)';
+  const genderIcon = surv.male ? '♂' : '♀';
+  const personalityColors = { UYUMLU:'var(--green)', SALDIRGAN:'var(--red)', KARİZMATİK:'var(--amber)', NEŞELİ:'var(--green)', ÇALIŞKAN:'var(--green)', TEMBEL:'var(--text-dim)', KIRISKAN:'var(--amber)', ÇEKİNGEN:'var(--text-dim)' };
+
+  const body = `
+    <div class="clearfix" style="margin-bottom:12px;">
+      <div class="surv-portrait" style="border-color:${surv.infected?'var(--red)':surv.suspicious?'var(--amber)':'var(--border)'}">${surv.emoji}</div>
+      <div>
+        <div class="surv-detail-name">${surv.name} <span style="font-size:12px;color:var(--text-dim)">${genderIcon}</span></div>
+        <div class="surv-detail-trait">${surv.trait} · ${surv.age} YAŞ</div>
+        <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;">
+          ${surv.infected ? '<span class="chip red">🦠 ENFEKTELİ</span>' : ''}
+          ${surv.suspicious ? '<span class="chip amber">👁 ŞÜPHELİ</span>' : ''}
+          ${!surv.infected && !surv.suspicious ? '<span class="chip green">✓ TEMİZ</span>' : ''}
+          <span class="chip blue" style="color:${personalityColors[surv.personality]||'var(--text-dim)'}">★ ${surv.personality}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="clear:both;margin-bottom:8px;">
+      ${skillBar('SAĞLIK', surv.health, healthLabel, surv.health>=75?'var(--green)':surv.health>=40?'var(--amber)':'var(--red)')}
+      ${skillBar('MORALİ', surv.happiness||50, v => v>=75?'Neşeli':v>=55?'İyi':v>=35?'Karamsarlık':v>=15?'Çökmüş':'Patlama noktasında', (surv.happiness||50)>=50?'var(--green)':(surv.happiness||50)>=25?'var(--amber)':'var(--red)')}
+      ${skillBar('SAVAŞ', surv.skills.combat, combatLabel)}
+      ${skillBar('TIP', surv.skills.medical, medicalLabel)}
+      ${skillBar('ATÖLYE', surv.skills.workshop, workshopLabel)}
+      ${skillBar('TARIM', surv.skills.farming, v => v>=60?'Çiftçi':v>=30?'Bahçıvan':'Acemi')}
+      ${skillBar('SOSYAL', surv.skills.social, socialLabel)}
+    </div>
+
+    ${surv.items.length > 0 ? `
+      <div style="font-size:10px; color:var(--text-dim); margin-bottom:5px; letter-spacing:1px;">EŞYALAR:</div>
+      <div class="inv-row">${surv.items.map(i => `<div class="inv-item">📦 ${i}</div>`).join('')}</div>
+    ` : ''}
+
+    ${risks.length > 0 || benefits.length > 0 ? `
+      <div class="risk-box">
+        <div class="risk-title">⚡ ANALİZ</div>
+        ${risks.map(r => `<div class="risk-item ${r.cls}">${r.text}</div>`).join('')}
+        ${benefits.map(b => `<div class="risk-item ${b.cls}">${b.text}</div>`).join('')}
+        ${atMaxPop ? `<div class="risk-item danger">⚠️ ÜS KAPASİTE DOLDU (${totalPop}/${STATE.base.maxPop})</div>` : ''}
+      </div>
+    ` : ''}
+
+    <div class="section-divider">KARAR VER</div>
+    <div class="decision-grid">
+      <button class="decision-btn accept" onclick="decideSurvivor('${surv.id}','accept')">
+        <span class="d-icon">✅</span>İÇERİ AL<span style="font-size:9px;opacity:0.7">Barakalara</span>
+      </button>
+      <button class="decision-btn quarantine" onclick="decideSurvivor('${surv.id}','quarantine')">
+        <span class="d-icon">🔒</span>KARANTİNA<span style="font-size:9px;opacity:0.7">Gözlem altı</span>
+      </button>
+      <button class="decision-btn prison" onclick="decideSurvivor('${surv.id}','prison')">
+        <span class="d-icon">⚠️</span>HÜCREYE AT<span style="font-size:9px;opacity:0.7">Tehlikeli</span>
+      </button>
+      <button class="decision-btn steal" onclick="decideSurvivor('${surv.id}','steal')">
+        <span class="d-icon">💰</span>EŞYA ÇAL<span style="font-size:9px;opacity:0.7">Al ve gönder</span>
+      </button>
+      <button class="decision-btn reject" onclick="decideSurvivor('${surv.id}','reject')">
+        <span class="d-icon">⛔</span>KABUL ETME<span style="font-size:9px;opacity:0.7">Kapat kapıyı</span>
+      </button>
+      <button class="decision-btn execute" onclick="decideSurvivor('${surv.id}','execute')">
+        <span class="d-icon">💀</span>ÖLDÜR<span style="font-size:9px;opacity:0.7">Tehdit biter</span>
+      </button>
+    </div>
+  `;
+
+  document.getElementById('modal-title').textContent = surv.name.toUpperCase();
+  document.getElementById('modal-subtitle').textContent = `KAPIDA BEKLİYOR · ${surv.trait} · ${surv.personality}`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function decideSurvivor(id, action) {
+  const idx = STATE.gate.queue.findIndex(p => String(p.id) === String(id));
+  if (idx === -1) return;
+  const surv = STATE.gate.queue.splice(idx, 1)[0];
+  const totalPop = STATE.people.length + STATE.quarantined.length + STATE.imprisoned.length;
+
+  // Gate officers (affect morale/health based on decisions)
+  const gateOfficers = (STATE.base.assignments.gate || [])
+    .map(gid => STATE.people.find(p => String(p.id) === String(gid)))
+    .filter(Boolean);
+
+  function affectGateOfficers(morDelta, healthDelta) {
+    gateOfficers.forEach(o => {
+      o.happiness = clamp((o.happiness||50) + morDelta, 0, 100);
+      o.health = clamp(o.health + healthDelta, 0, 100);
+    });
+  }
+
+  // HIDDEN INFECTION: survivor's true infected state is hidden from player.
+  // We store it on the object but the decision is made without knowing.
+  // After 1 day in base it will be revealed. Mark as pending reveal.
+  const trueInfected = surv.infected;
+  surv.infected = false;       // hide from base display
+  surv.infectionPending = trueInfected;  // will be revealed after 1 day
+
+  switch(action) {
+    case 'accept':
+      if (totalPop >= STATE.base.maxPop) {
+        showNotification('⛔ Üs kapasitesi dolu!', true);
+        surv.infected = trueInfected; surv.infectionPending = false;
+        STATE.gate.queue.unshift(surv);
+        return;
+      }
+      surv.location = 'barracks';
+      surv.daysInBase = 0;
+      STATE.people.push(surv);
+      STATE.total_accepted++;
+      surv.items.forEach(item => applyItem(item));  // auto-add items
+      addLog(`✅ ${surv.name} (${surv.trait}) üse kabul edildi. Eşyaları depoya eklendi.`, 'success');
+      showNotification(`✅ ${surv.name} üse alındı!`, false);
+      // Gate officer: morally neutral
+      break;
+
+    case 'quarantine':
+      if (totalPop >= STATE.base.maxPop) {
+        showNotification('⛔ Üs kapasitesi dolu!', true);
+        surv.infected = trueInfected; surv.infectionPending = false;
+        STATE.gate.queue.unshift(surv);
+        return;
+      }
+      surv.location = 'quarantine';
+      surv.daysInBase = 0;
+      STATE.quarantined.push(surv);
+      STATE.total_accepted++;
+      surv.items.forEach(item => applyItem(item));  // auto-add items
+      addLog(`🔒 ${surv.name} karantinaya alındı. Eşyaları depoya eklendi.`, 'warning');
+      showNotification(`🔒 ${surv.name} karantinada`, false);
+      break;
+
+    case 'prison':
+      if (totalPop >= STATE.base.maxPop) {
+        showNotification('⛔ Üs kapasitesi dolu!', true);
+        surv.infected = trueInfected; surv.infectionPending = false;
+        STATE.gate.queue.unshift(surv);
+        return;
+      }
+      surv.location = 'prison';
+      surv.daysInBase = 0;
+      surv.infected = trueInfected; surv.infectionPending = false;
+      STATE.imprisoned.push(surv);
+      surv.items.forEach(item => applyItem(item));  // auto-add items
+      addLog(`⚠️ ${surv.name} hücreye konuldu. Eşyaları müsadere edildi.`, 'warning');
+      showNotification(`⚠️ ${surv.name} hücrede`, false);
+      break;
+
+    case 'steal':
+      surv.infected = trueInfected; surv.infectionPending = false;
+      if (surv.items.length > 0) {
+        surv.items.forEach(item => applyItem(item));
+        addLog(`💰 ${surv.name}'in eşyaları alındı ve kovuldu.`, 'warning');
+        showNotification(`💰 Eşyalar alındı, survivor kovuldu`, false);
+        // Potential future attacker
+        if (Math.random() < 0.35) {
+          STATE.social.alerts.push({ id: Date.now(), msg: `⚠️ Kovulan ${surv.name} saldırıya geri dönebilir!`, type:'threat', actionFn:null });
+          STATE._potentialAttackers = (STATE._potentialAttackers || 0) + 1;
+        }
+        // Gate officers: if survivor was infected, officers health drops
+        if (trueInfected) {
+          affectGateOfficers(-5, -8);
+          addLog(`🦠 Yağmalanan survivor enfekteydi! Kapı nöbetçileri etkilendi.`, 'danger');
+        }
+      } else {
+        addLog(`${surv.name}'in eşyası yoktu, kovuldu.`, '');
+        showNotification(`😶 Eşya yoktu`, false);
+      }
+      STATE.total_rejected++;
+      // Future raid risk increases
+      STATE._potentialAttackers = (STATE._potentialAttackers || 0) + 1;
+      break;
+
+    case 'reject':
+      surv.infected = trueInfected; surv.infectionPending = false;
+      STATE.total_rejected++;
+      addLog(`⛔ ${surv.name} reddedildi ve geri gönderildi.`, '');
+      showNotification(`⛔ ${surv.name} reddedildi`, false);
+      // Future raid risk
+      if (Math.random() < 0.2) {
+        STATE._potentialAttackers = (STATE._potentialAttackers || 0) + 1;
+      }
+      break;
+
+    case 'execute':
+      surv.infected = trueInfected; surv.infectionPending = false;
+      STATE.total_executed++;
+      STATE._lastExecuted = surv; // store for loot modal
+      // Show loot choice modal BEFORE closing
+      closeModal();
+      showExecuteLootModal(surv, trueInfected);
+      updateUI();
+      return; // skip closeModal below
+  }
+
+  closeModal();
+  updateUI();
+}
+
+function showExecuteLootModal(surv, wasInfected) {
+  const hasItems = surv.items.length > 0;
+  const body = `
+    <div style="font-size:36px;text-align:center;margin-bottom:8px;">💀</div>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:14px;">
+      <b style="color:var(--red)">${surv.name}</b> öldürüldü.
+      ${wasInfected ? '<div style="color:var(--red);margin-top:6px;">⚠️ Bu kişi ENFEKTEYDİ!</div>' : ''}
+    </div>
+    ${hasItems ? `
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;">
+        Üzerinde ${surv.items.length} eşya var:<br>
+        <div class="inv-row" style="margin-top:6px;">${surv.items.map(i=>`<div class="inv-item">📦 ${i}</div>`).join('')}</div>
+      </div>
+      <div class="decision-grid">
+        <button class="decision-btn accept" onclick="executeLoot('${surv.id}',true,${wasInfected});closeModal()">
+          <span class="d-icon">💰</span>EŞYALARI AL
+          ${wasInfected?'<span style="font-size:9px;color:var(--red)">⚠️ Sağlık riski!</span>':'<span style="font-size:9px;opacity:0.7">Depoya ekle</span>'}
+        </button>
+        <button class="decision-btn reject" onclick="executeLoot('${surv.id}',false,${wasInfected});closeModal()">
+          <span class="d-icon">🚫</span>BIRAK
+          ${wasInfected?'<span style="font-size:9px;color:var(--green)">✓ Moral artar</span>':'<span style="font-size:9px;opacity:0.7">Terk et</span>'}
+        </button>
+      </div>
+    ` : `
+      <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:12px;">Üzerinde eşya yoktu.</div>
+      <button onclick="executeLoot('${surv.id}',false,${wasInfected});closeModal()" style="width:100%;padding:10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;">
+        TAMAM
+      </button>
+    `}
+  `;
+  document.getElementById('modal-title').textContent = 'ÖLDÜRME SONUCU';
+  document.getElementById('modal-subtitle').textContent = surv.name + ' · Karar ver';
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function executeLoot(survId, takeLoot, wasInfected) {
+  // Find surv from a temporary store — we pass data via closure above, use STATE._lastExecuted
+  // Gate officers affected
+  const gateOfficers = (STATE.base.assignments.gate || [])
+    .map(gid => STATE.people.find(p => String(p.id) === String(gid)))
+    .filter(Boolean);
+
+  if (takeLoot) {
+    // Find the survivor from gate queue (it was already removed; items stored on local ref)
+    // Morale drop for killing
+    gateOfficers.forEach(o => { o.happiness = clamp((o.happiness||50) - 8, 0, 100); });
+    STATE.social.morale = clamp(STATE.social.morale - 5, 0, 100);
+    if (wasInfected) {
+      // Health risk for taking infected items
+      gateOfficers.forEach(o => { o.health = clamp(o.health - 15, 0, 100); });
+      addLog(`💀 Enfekte eşyalar alındı. Kapı nöbetçilerinin sağlığı düştü!`, 'danger');
+    } else {
+      addLog(`💰 Eşyalar alındı. Moral düştü.`, 'warning');
+    }
+    // Note: actual item application was removed from execute case — we apply here
+    // but we've lost the surv reference. Store it temporarily.
+    if (STATE._lastExecuted) {
+      STATE._lastExecuted.items.forEach(item => applyItem(item));
+    }
+  } else {
+    if (wasInfected) {
+      // Left infected body → morale bonus (right decision)
+      gateOfficers.forEach(o => { o.happiness = clamp((o.happiness||50) + 5, 0, 100); });
+      STATE.social.morale = clamp(STATE.social.morale + 3, 0, 100);
+      addLog(`✓ Enfekte cesedi terk edildi. Doğru karar — moral arttı.`, 'success');
+    } else {
+      // Normal killing with no loot — just morale hit
+      gateOfficers.forEach(o => { o.happiness = clamp((o.happiness||50) - 5, 0, 100); });
+      STATE.social.morale = clamp(STATE.social.morale - 3, 0, 100);
+      addLog(`💀 Survivor öldürüldü, eşyalar terk edildi. Moral düştü.`, 'warning');
+    }
+  }
+  STATE._lastExecuted = null;
+  updateUI();
+}
+
+function applyItem(itemStr) {
+  if (itemStr.includes('İlaç')) STATE.resources.meds += parseInt(itemStr.match(/\d+/)?.[0] || 1);
+  if (itemStr.includes('Yiyecek')) STATE.resources.food += parseInt(itemStr.match(/\d+/)?.[0] || 3);
+  if (itemStr.includes('Parça')) STATE.resources.parts += parseInt(itemStr.match(/\d+/)?.[0] || 2);
+  if (itemStr.includes('Su')) STATE.resources.food += 1;
+  if (itemStr.includes('Kap Parası')) STATE.resources.caps += parseInt(itemStr.match(/\d+/)?.[0] || 3);
+  if (itemStr.includes('Pil')) STATE.resources.energy += parseInt(itemStr.match(/\d+/)?.[0] || 1) * 3;
+}
+
+// ==================== UPGRADES ====================
+function showUpgrades() {
+  const body = `
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        <div class="upgrade-name">🌾 TARLA AÇMA</div>
+        <div class="upgrade-desc">Yeni tarla parseli aç (Şu an: ${STATE.farm.unlocked}/6)</div>
+        <div class="upgrade-cost">💰 8 Kap Parası · 🔧 5 Parça</div>
+      </div>
+      <button class="upgrade-btn" onclick="doUpgrade('farm')" ${STATE.farm.unlocked >= 6 ? 'disabled' : STATE.resources.caps < 8 || STATE.resources.parts < 5 ? 'disabled' : ''}>${STATE.farm.unlocked >= 6 ? 'DOLU' : 'AÇ'}</button>
+    </div>
+    <div class="upgrade-item">
+        <div class="upgrade-desc">Maks. kişi sayısını 1 artırır (Şu an: ${STATE.base.maxPop})</div>
+        <div class="upgrade-cost">💰 15 Kap Parası · 🔧 10 Parça</div>
+      </div>
+      <button class="upgrade-btn" onclick="doUpgrade('pop')" ${STATE.resources.caps < 15 || STATE.resources.parts < 10 ? 'disabled' : ''}>YÜKSELT</button>
+    </div>
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        <div class="upgrade-name">🔬 KLİNİK İNŞA ET</div>
+        <div class="upgrade-desc">Yaralıları iyileştir, enfeksiyonu teşhis et</div>
+        <div class="upgrade-cost">💰 20 Kap Parası · 🔧 15 Parça · 💊 5 İlaç</div>
+      </div>
+      <button class="upgrade-btn" onclick="doUpgrade('clinic')" ${STATE.base.upgrades.clinic ? 'disabled' : STATE.resources.caps < 20 || STATE.resources.parts < 15 || STATE.resources.meds < 5 ? 'disabled' : ''}>${STATE.base.upgrades.clinic ? 'MEVCUT' : 'İNŞA ET'}</button>
+    </div>
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        <div class="upgrade-name">⚙️ ATÖLYE İNŞA ET</div>
+        <div class="upgrade-desc">Parça üretimini artırır, üssü onar</div>
+        <div class="upgrade-cost">💰 18 Kap Parası · 🔧 20 Parça</div>
+      </div>
+      <button class="upgrade-btn" onclick="doUpgrade('workshop')" ${STATE.base.upgrades.workshop ? 'disabled' : STATE.resources.caps < 18 || STATE.resources.parts < 20 ? 'disabled' : ''}>${STATE.base.upgrades.workshop ? 'MEVCUT' : 'İNŞA ET'}</button>
+    </div>
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        <div class="upgrade-name">🏗️ DUVARLARI GÜÇLENDIR (Seviye ${STATE.base.upgrades.walls})</div>
+        <div class="upgrade-desc">Saldırılara karşı savunmayı artırır</div>
+        <div class="upgrade-cost">💰 12 Kap Parası · 🔧 8 Parça</div>
+      </div>
+      <button class="upgrade-btn" onclick="doUpgrade('walls')" ${STATE.resources.caps < 12 || STATE.resources.parts < 8 ? 'disabled' : ''}>YÜKSELT</button>
+    </div>
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        <div class="upgrade-name">☀️ GÜNEŞ PANELİ (Seviye ${STATE.base.upgrades.solar})</div>
+        <div class="upgrade-desc">Enerji üretimini artırır</div>
+        <div class="upgrade-cost">💰 10 Kap Parası · 🔧 12 Parça</div>
+      </div>
+      <button class="upgrade-btn" onclick="doUpgrade('solar')" ${STATE.resources.caps < 10 || STATE.resources.parts < 12 ? 'disabled' : ''}>YÜKSELT</button>
+    </div>
+  `;
+
+  document.getElementById('modal-title').textContent = 'GELİŞTİRMELER';
+  document.getElementById('modal-subtitle').textContent = `💰 ${Math.floor(STATE.resources.caps)} KAP PARASI MEVCUT`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function doUpgrade(type) {
+  switch(type) {
+    case 'farm':
+      if (STATE.farm.unlocked >= 6) return;
+      STATE.resources.caps -= 8; STATE.resources.parts -= 5;
+      STATE.farm.unlocked++;
+      addLog(`Yeni tarla parseli açıldı (${STATE.farm.unlocked}/6).`, 'success');
+      showNotification(`🌾 Yeni tarla açıldı!`, false);
+      break;
+    case 'pop':
+      if (STATE.resources.caps < 15 || STATE.resources.parts < 10) return;
+      STATE.resources.caps -= 15;
+      STATE.resources.parts -= 10;
+      STATE.base.maxPop++;
+      addLog(`Üs kapasitesi ${STATE.base.maxPop} kişiye çıkarıldı.`, 'success');
+      showNotification(`✅ Kapasite: ${STATE.base.maxPop}`, false);
+      break;
+    case 'clinic':
+      if (STATE.base.upgrades.clinic) return;
+      STATE.resources.caps -= 20; STATE.resources.parts -= 15; STATE.resources.meds -= 5;
+      STATE.base.upgrades.clinic = true;
+      addLog('Klinik inşa edildi!', 'success');
+      showNotification('🔬 Klinik hazır!', false);
+      break;
+    case 'workshop':
+      if (STATE.base.upgrades.workshop) return;
+      STATE.resources.caps -= 18; STATE.resources.parts -= 20;
+      STATE.base.upgrades.workshop = true;
+      addLog('Atölye inşa edildi!', 'success');
+      showNotification('⚙️ Atölye hazır!', false);
+      break;
+    case 'walls':
+      STATE.resources.caps -= 12; STATE.resources.parts -= 8;
+      STATE.base.upgrades.walls++;
+      addLog(`Duvarlar güçlendirildi (Seviye ${STATE.base.upgrades.walls}).`, 'success');
+      showNotification(`🏗️ Duvarlar güçlendi!`, false);
+      break;
+    case 'solar':
+      STATE.resources.caps -= 10; STATE.resources.parts -= 12;
+      STATE.base.upgrades.solar++;
+      STATE.resources.energy = Math.min(50, STATE.resources.energy + 10);
+      addLog(`Güneş paneli eklendi (Seviye ${STATE.base.upgrades.solar}).`, 'success');
+      showNotification(`☀️ Enerji artıyor!`, false);
+      break;
+  }
+  closeModal();
+  updateUI();
+}
+
+// ==================== MORALE SKILL BONUS ====================
+function getEffectiveSkill(person, skillKey) {
+  const base = person.skills[skillKey] || 0;
+  const morale = person.happiness || 50;
+  let bonus = 0;
+  if (morale >= 80) bonus = 5;
+  else if (morale >= 60) bonus = 2;
+  else if (morale >= 50) bonus = 1;
+  else if (morale >= 35) bonus = -3;
+  else if (morale >= 20) bonus = -7;
+  else bonus = -12;
+  return clamp(base + bonus, 0, 100);
+}
+
+// ==================== SKIP TIME (TEST MODE) ====================
+function skipTime(seconds) {
+  STATE.gate.timer = Math.max(0, STATE.gate.timer - seconds);
+  showNotification(`⏩ ${seconds >= 3600 ? '1 saat' : seconds/60 + ' dakika'} ileri sarıldı`, false);
+}
+
+// ==================== INFECTION REVEAL ====================
+function revealInfections() {
+  // After 1 day in base, pending infections are revealed
+  [...STATE.people, ...STATE.quarantined].forEach(p => {
+    if (p.infectionPending && p.daysInBase >= 1) {
+      p.infected = true;
+      p.infectionPending = false;
+      addLog(`🦠 UYARI: ${p.name}'in ENFEKTELİ olduğu ortaya çıktı! (${p.location === 'quarantine' ? 'Karantinada' : 'Barakalarda'})`, 'danger');
+      showNotification(`🦠 ${p.name} ENFEKTELİ çıktı!`, true);
+      if (p.location !== 'quarantine') {
+        // Spread risk — could infect neighbours
+        STATE.social.morale = clamp(STATE.social.morale - 10, 0, 100);
+        STATE.social.tensionLevel = clamp(STATE.social.tensionLevel + 15, 0, 100);
+        addSocialAlert(`🦠 ${p.name} barakalarda enfekte çıktı! Karantinaya al!`, 'epidemic', null);
+      }
+    }
+  });
+}
+
+// ==================== WORKSHOP PRODUCTION ====================
+function processWorkshop() {
+  const workers = (STATE.base.assignments.workshop || [])
+    .map(id => STATE.people.find(p => String(p.id) === String(id))).filter(Boolean);
+  if (!STATE.base.upgrades.workshop || workers.length === 0) return [];
+
+  const results = [];
+  workers.forEach(w => {
+    const eff = getEffectiveSkill(w, 'workshop');
+    const partsGained = Math.floor(eff / 20) + randInt(1, 3);
+    const capsGained = Math.floor(eff / 30) + randInt(0, 2);
+    STATE.resources.parts += partsGained;
+    STATE.resources.caps += capsGained;
+    results.push({ name: w.name, parts: partsGained, caps: capsGained, eff });
+    // Random workshop event
+    if (Math.random() < 0.15) {
+      const events = [
+        { msg: `${w.name} atölyede yeni bir alet geliştirdi!`, bonus: { parts: 3 } },
+        { msg: `${w.name} bir ekipmanı tamir etti, enerji kazanıldı.`, bonus: { energy: 5 } },
+        { msg: `${w.name} dikkatsizlik yüzünden bir parçayı mahvetti.`, bonus: { parts: -2 } },
+      ];
+      const ev = randFrom(events);
+      Object.entries(ev.bonus).forEach(([k,v]) => { STATE.resources[k] = Math.max(0, (STATE.resources[k]||0) + v); });
+      results.push({ event: ev.msg });
+      addLog(`⚙️ ${ev.msg}`, v < 0 ? 'warning' : 'success');
+    }
+  });
+  return results;
+}
+
+// ==================== FOOD DISTRIBUTION POPUP ====================
+function showDayEndSummary(dayReport) {
+  const people = STATE.people;
+  let html = `
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;line-height:1.8;">
+      <b style="color:var(--green-bright)">GÜN ${STATE.day - 1} BİTTİ</b> — Kaynaklar hazır, yiyecek dağıtımı yapılacak.
+    </div>
+
+    ${dayReport.workshop.length > 0 ? `
+      <div style="font-size:10px;color:var(--amber);margin-bottom:4px;letter-spacing:1px;">⚙️ ATÖLYE ÜRETİMİ</div>
+      ${dayReport.workshop.map(r => r.event
+        ? `<div style="font-size:10px;color:var(--text-dim);padding:2px 0;">${r.event}</div>`
+        : `<div style="font-size:10px;color:var(--text-dim);padding:2px 0;">${r.name}: +${r.parts}🔧 +${r.caps}🪙 (Verim: ${r.eff})</div>`
+      ).join('')}
+    ` : ''}
+
+    ${dayReport.missions.length > 0 ? `
+      <div style="font-size:10px;color:var(--amber);margin-bottom:4px;margin-top:8px;letter-spacing:1px;">🚀 GÖREV SONUÇLARI</div>
+      ${dayReport.missions.map(m => `<div style="font-size:10px;color:var(--text-dim);padding:2px 0;">${m}</div>`).join('')}
+    ` : ''}
+
+    <div style="font-size:10px;color:var(--amber);margin-top:10px;margin-bottom:6px;letter-spacing:1px;">
+      🍖 YİYECEK DAĞITIMI — Mevcut: <b style="color:var(--green-bright)">${Math.floor(STATE.resources.food)}</b> kaynak
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">
+      Her kişi 5-10 arası kaynak yer. Eksik beslenme sağlık ve moral düşürür.
+    </div>
+
+    <div id="food-dist-list">
+      ${people.map(p => {
+        const maxFood = p.male ? 10 : 9;
+        const minFood = 5;
+        const defFood = Math.min(maxFood, Math.max(0, Math.floor(STATE.resources.food / Math.max(people.length,1))));
+        return `
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:10px;">
+            <span style="font-size:14px">${p.emoji}</span>
+            <span style="flex:1;color:var(--text-bright)">${p.name}</span>
+            <span style="font-size:9px;color:var(--text-dim)">${p.male?'♂':'♀'} max${maxFood}</span>
+            <input type="range" min="0" max="${maxFood}" value="${defFood}" step="1"
+              oninput="this.nextElementSibling.textContent=this.value;updateFoodTotal()"
+              style="width:70px;accent-color:var(--green);" data-person-id="${p.id}">
+            <span style="min-width:20px;text-align:right;color:var(--green-bright)">${defFood}</span>
+          </div>`;
+      }).join('')}
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px;background:var(--bg2);border:1px solid var(--border);">
+      <span style="font-size:10px;color:var(--text-dim);">Toplam dağıtım: <b id="total-food-dist">0</b> / ${Math.floor(STATE.resources.food)}</span>
+      <button onclick="autoDistributeFood()" style="padding:5px 10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green-bright);font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:1px;">
+        ⚡ OTO DAĞIT
+      </button>
+    </div>
+
+    <button onclick="confirmFoodDistribution()" style="width:100%;margin-top:10px;padding:10px;background:var(--green-dim);border:1px solid var(--green-bright);color:var(--green-bright);font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:2px;">
+      ✅ DAĞITIMI ONAYLA & GÜNÜ BAŞLAT
+    </button>
+  `;
+
+  document.getElementById('modal-title').textContent = `GÜN ${STATE.day} ÖZET`;
+  document.getElementById('modal-subtitle').textContent = `Yiyecek dağıtımını yap`;
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('show');
+  updateFoodTotal();
+}
+
+function updateFoodTotal() {
+  const inputs = document.querySelectorAll('#food-dist-list input[type=range]');
+  let total = 0;
+  inputs.forEach(inp => total += parseInt(inp.value));
+  const el = document.getElementById('total-food-dist');
+  if (el) {
+    el.textContent = total;
+    el.style.color = total > STATE.resources.food ? 'var(--red)' : 'var(--green-bright)';
+  }
+}
+
+function autoDistributeFood() {
+  const inputs = document.querySelectorAll('#food-dist-list input[type=range]');
+  const people = STATE.people;
+  let remaining = Math.floor(STATE.resources.food);
+  const perPerson = Math.min(10, Math.floor(remaining / Math.max(people.length, 1)));
+  inputs.forEach((inp, i) => {
+    const max = parseInt(inp.max);
+    const val = Math.min(max, perPerson);
+    inp.value = val;
+    if (inp.nextElementSibling) inp.nextElementSibling.textContent = val;
+  });
+  updateFoodTotal();
+}
+
+function confirmFoodDistribution() {
+  const inputs = document.querySelectorAll('#food-dist-list input[type=range]');
+  const foodLog = [];
+  let totalSpent = 0;
+
+  inputs.forEach(inp => {
+    const pid = inp.dataset.personId;
+    const amount = parseInt(inp.value);
+    const person = STATE.people.find(p => String(p.id) === String(pid));
+    if (!person) return;
+    totalSpent += amount;
+
+    // Apply food effects
+    const maxFood = person.male ? 10 : 9;
+    if (amount >= maxFood) {
+      // Full meal — max moral bonus
+      person.happiness = clamp((person.happiness||50) + 5, 0, 100);
+      foodLog.push(`${person.name}: dolu yedi (+5 moral)`);
+    } else if (amount >= 5) {
+      // Adequate — no bonus no penalty
+      foodLog.push(`${person.name}: yeterli yedi`);
+    } else if (amount === 4) {
+      person.happiness = clamp((person.happiness||50) - 3, 0, 100);
+      person.health = clamp(person.health - 2, 0, 100);
+      foodLog.push(`${person.name}: az yedi (-3 moral, -2 sağlık)`);
+    } else if (amount === 3) {
+      person.happiness = clamp((person.happiness||50) - 6, 0, 100);
+      person.health = clamp(person.health - 5, 0, 100);
+    } else if (amount === 2) {
+      person.happiness = clamp((person.happiness||50) - 10, 0, 100);
+      person.health = clamp(person.health - 8, 0, 100);
+    } else if (amount === 1) {
+      person.happiness = clamp((person.happiness||50) - 15, 0, 100);
+      person.health = clamp(person.health - 12, 0, 100);
+    } else {
+      // 0 food — severe penalty
+      person.happiness = clamp((person.happiness||50) - 25, 0, 100);
+      person.health = clamp(person.health - 20, 0, 100);
+      addLog(`🚨 ${person.name} hiç yemedi! Ağır etki.`, 'danger');
+    }
+  });
+
+  STATE.resources.food = Math.max(0, STATE.resources.food - totalSpent);
+  addLog(`🍖 Yiyecek dağıtımı tamamlandı. Toplam: ${totalSpent} kaynak harcandı.`, 'success');
+  closeModal();
+  updateUI();
+}
+
+// ==================== DAY ADVANCE ====================
+function advanceDay() {
+  const dayReport = { workshop: [], missions: [] };
+
+  // Capture mission log messages
+  const origAddLog = addLog;
+
+  // Increase days in base
+  STATE.people.forEach(p => p.daysInBase = (p.daysInBase||0) + 1);
+  STATE.quarantined.forEach(p => p.daysInBase = (p.daysInBase||0) + 1);
+
+  // REVEAL HIDDEN INFECTIONS
+  revealInfections();
+
+  // WORKSHOP PRODUCTION
+  dayReport.workshop = processWorkshop();
+
+  // Farm production from assigned farmers
+  const farmWorkers = (STATE.base.assignments.farm || [])
+    .map(id => STATE.people.find(p => String(p.id) === String(id))).filter(Boolean);
+  farmWorkers.forEach(w => {
+    const eff = getEffectiveSkill(w, 'farming');
+    const gain = Math.floor(eff / 15) + randInt(1, 4);
+    STATE.resources.food += gain;
+    addLog(`🌾 ${w.name} tarlada ${gain} yiyecek üretti.`, 'success');
+  });
+
+  // Management bonus
+  const mgmtWorkers = (STATE.base.assignments.management || [])
+    .map(id => STATE.people.find(p => String(p.id) === String(id))).filter(Boolean);
+  mgmtWorkers.forEach(w => {
+    const eff = getEffectiveSkill(w, 'social');
+    const capsBonus = Math.floor(eff / 20);
+    STATE.resources.caps += capsBonus;
+    STATE.social.morale = clamp(STATE.social.morale + Math.floor(eff / 40), 0, 100);
+  });
+
+  // Clinic healing
+  const clinicWorkers = (STATE.base.assignments.clinic || [])
+    .map(id => STATE.people.find(p => String(p.id) === String(id))).filter(Boolean);
+  if (STATE.base.upgrades.clinic && clinicWorkers.length > 0) {
+    clinicWorkers.forEach(doc => {
+      const eff = getEffectiveSkill(doc, 'medical');
+      const heal = Math.floor(eff / 20);
+      STATE.people.filter(p => p.health < 90 && p.id !== doc.id).slice(0, clinicWorkers.length * 3).forEach(p => {
+        p.health = clamp(p.health + heal, 0, 100);
+      });
+    });
+  }
+
+  // Energy consumption
+  const totalPeople = STATE.people.length + STATE.quarantined.length * 0.5 + STATE.imprisoned.length * 0.5;
+  STATE.resources.energy = Math.max(0, STATE.resources.energy - totalPeople * 1.5 + STATE.base.upgrades.solar * 5);
+  STATE.resources.caps += STATE.people.length * 0.5; // small daily income
+
+  // Quarantine checks
+  const toRemoveQ = [];
+  STATE.quarantined.forEach((p) => {
+    if (p.daysInBase >= 3) {
+      if (p.infected) {
+        if (Math.random() < 0.4) {
+          addLog(`💀 ${p.name} karantinada hayatını kaybetti.`, 'danger');
+          toRemoveQ.push(p.id);
+        }
+      } else {
+        toRemoveQ.push(p.id);
+        STATE.people.push({...p, location: 'barracks'});
+        addLog(`✅ ${p.name} karantinayı geçti, barakalara katıldı.`, 'success');
+      }
+    }
+  });
+  STATE.quarantined = STATE.quarantined.filter(p => !toRemoveQ.includes(p.id));
+
+  // Process social/mission/escape systems
+  processSocialDay();
+  processPregnancies();
+  processMissions();
+  processPrisonEscapes();
+  processWorkshopProjects();
+  processFarmCrops();
+  processInfectionProgression();
+  checkNightRaid();
+
+  // Potential attacker raid bonus
+  if ((STATE._potentialAttackers || 0) > 0 && Math.random() < STATE._potentialAttackers * 0.05) {
+    STATE.nightRaid.raidStrength = (STATE.nightRaid.raidStrength || 0) + STATE._potentialAttackers * 2;
+    addLog(`⚠️ Kovulan kişiler saldırıyı güçlendiriyor! (${STATE._potentialAttackers} potansiyel saldırgan)`, 'warning');
+  }
+
+  STATE.day++;
+  STATE.activities.completedToday = [];
+
+  // Show day end summary with food distribution
+  showDayEndSummary(dayReport);
+
+  updateUI();
+  renderSocialTab();
+}
+
+// ==================== MODAL ====================
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+});
+
+function showBaseModal() {
+  const body = `
+    <div class="stat-row"><span class="stat-label">GÜN</span><span class="stat-value">${STATE.day}</span></div>
+    <div class="stat-row"><span class="stat-label">TOPLAM NÜFUS</span><span class="stat-value">${STATE.people.length + STATE.quarantined.length + STATE.imprisoned.length} / ${STATE.base.maxPop}</span></div>
+    <div class="stat-row"><span class="stat-label">KABUl EDİLEN</span><span class="stat-value" style="color:var(--green)">${STATE.total_accepted}</span></div>
+    <div class="stat-row"><span class="stat-label">REDDEDİLEN</span><span class="stat-value" style="color:var(--text-dim)">${STATE.total_rejected}</span></div>
+    <div class="stat-row"><span class="stat-label">ÖLDÜRÜlEN</span><span class="stat-value" style="color:var(--red)">${STATE.total_executed}</span></div>
+    <div class="stat-row"><span class="stat-label">SAVUNMA</span><span class="stat-value">${30 + STATE.base.upgrades.walls * 15}%</span></div>
+    <div class="stat-row"><span class="stat-label">DOKTORLAR</span><span class="stat-value">${STATE.people.filter(p=>p.trait==='DOKTOR').length}</span></div>
+    <div class="stat-row"><span class="stat-label">MÜHENDİSLER</span><span class="stat-value">${STATE.people.filter(p=>p.trait==='MÜHENDİS').length}</span></div>
+    <div class="stat-row"><span class="stat-label">ASKERLER</span><span class="stat-value">${STATE.people.filter(p=>p.trait==='ASKER' || p.trait==='GÜVENLİK').length}</span></div>
+  `;
+  document.getElementById('modal-title').textContent = 'ÜS DURUMU';
+  document.getElementById('modal-subtitle').textContent = `LAST BASTION · GÜN ${STATE.day}`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function showGateModal() {
+  if (STATE.gate.queue.length === 0) {
+    showNotification('Kapıda kimse yok', false);
+    return;
+  }
+  // Show first person
+  showSurvivorDecision(STATE.gate.queue[0].id);
+}
+
+// ==================== TAB SWITCHING ====================
+function switchLeftTab(name, btn) {
+  document.querySelectorAll('#left-panel .tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#left-panel .view-tab').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('ltab-' + name);
+  if (el) el.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'people') { renderBasePeopleList(); }
+}
+
+function switchRightTab(name, btn) {
+  document.querySelectorAll('#right-panel .tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#right-panel .view-tab').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('rtab-' + name);
+  if (el) el.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'buildings') renderBuildingAssignments();
+  if (name === 'activities') renderActivities();
+  if (name === 'social') renderSocialTab();
+}
+
+// Legacy switchTab for any remaining calls
+function switchTab(name) {
+  // Map old tab names to new system
+  const leftTabs = { gate:'gate', people:'people' };
+  const rightTabs = { activities:'activities', social:'social', buildings:'buildings' };
+  if (leftTabs[name]) switchLeftTab(leftTabs[name]);
+  else if (rightTabs[name]) switchRightTab(rightTabs[name]);
+}
+
+// ==================== LOG ====================
+function addLog(msg, type = '') {
+  const logEl = document.getElementById('event-log');
+  const d = new Date();
+  const time = `G${STATE.day}`;
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type === 'danger' ? 'log-danger' : type === 'warning' ? 'log-warning' : type === 'success' ? 'log-success' : ''}`;
+  entry.innerHTML = `<span class="log-time">[${time}]</span>${msg}`;
+  logEl.insertBefore(entry, logEl.firstChild);
+  STATE.day_log.unshift({ time, msg, type });
+  if (STATE.day_log.length > 100) STATE.day_log.pop();
+}
+
+// ==================== NOTIFICATION ====================
+let notifTimeout;
+function showNotification(msg, danger = false) {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.className = 'show' + (danger ? ' danger-notif' : '');
+  clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(() => { el.className = ''; }, 2500);
+}
+
+// ==================== ACTIVITY SYSTEM ====================
+const ACTIVITIES = [
+  {
+    id: 'clean',
+    icon: '🧹',
+    name: 'ÜS TEMİZLİĞİ',
+    desc: 'Enkaz ve pisliği temizle. Moral artar, hastalık riski düşer.',
+    duration: 120, // seconds (simulate ~10 min feel)
+    rewards: { morale: 10, disease_risk: -5 },
+    rewardText: ['+Moral', '-Hastalık Riski'],
+    rewardColor: ['pos', 'pos'],
+    cost: {},
+    category: 'base',
+    available: () => true,
+  },
+  {
+    id: 'scavenge_nearby',
+    icon: '🔦',
+    name: 'YAKIN ÇEVRE ARAŞTIR',
+    desc: 'Çevredeki binalarda malzeme ara. Risk var ama kazanç iyi.',
+    duration: 180,
+    rewards: { food: [3,8], parts: [2,5], meds: [0,3], caps: [2,6] },
+    rewardText: ['+Yiyecek', '+Parça', '±İlaç', '+Kap Parası'],
+    rewardColor: ['pos', 'pos', 'pos', 'pos'],
+    cost: { energy: 5 },
+    category: 'base',
+    available: () => STATE.resources.energy >= 5,
+  },
+  {
+    id: 'reinforce_walls',
+    icon: '🪵',
+    name: 'BARRIKAD KURMA',
+    desc: 'Kapı ve duvarları tahta ve enkazla güçlendir.',
+    duration: 150,
+    rewards: { defense_bonus: 5, parts: [-3] },
+    rewardText: ['+Savunma', '-3 Parça'],
+    rewardColor: ['pos', 'neg'],
+    cost: { parts: 3 },
+    category: 'base',
+    available: () => STATE.resources.parts >= 3,
+  },
+  {
+    id: 'water_collect',
+    icon: '💧',
+    name: 'SU TOPLAMA',
+    desc: 'Yağmur suyunu topla ve filtrele. Yiyecek yerine sayılır.',
+    duration: 90,
+    rewards: { food: [4,10] },
+    rewardText: ['+Su/Yiyecek'],
+    rewardColor: ['pos'],
+    cost: {},
+    category: 'base',
+    available: () => true,
+  },
+  {
+    id: 'med_sort',
+    icon: '💊',
+    name: 'İLAÇ STOK SAYIMI',
+    desc: 'Depodaki ilaçları say ve düzenle. Ek ilaç bulunabilir.',
+    duration: 100,
+    rewards: { meds: [1,4] },
+    rewardText: ['+İlaç'],
+    rewardColor: ['pos'],
+    cost: {},
+    category: 'base',
+    available: () => true,
+  },
+  {
+    id: 'guard_shift',
+    icon: '👁',
+    name: 'GÖZETİM NÖBET',
+    desc: 'Duvarlardan çevreyi izle. Tehdit erken tespit edilebilir.',
+    duration: 200,
+    rewards: { threat_info: true, caps: [3,8] },
+    rewardText: ['+Tehdit Bilgisi', '+Kap Parası'],
+    rewardColor: ['pos', 'pos'],
+    cost: {},
+    category: 'base',
+    available: () => true,
+  },
+  {
+    id: 'cook_meal',
+    icon: '🍲',
+    name: 'BÜYÜK YEMEK PİŞİR',
+    desc: 'Ham yiyecekten doyurucu yemek yap. Moral ciddi artar.',
+    duration: 130,
+    rewards: { food: [-2], morale: 20 },
+    rewardText: ['-2 Hammadde', '+Büyük Moral'],
+    rewardColor: ['neg', 'pos'],
+    cost: { food: 2 },
+    category: 'base',
+    available: () => STATE.resources.food >= 2,
+  },
+  {
+    id: 'radio_broadcast',
+    icon: '📻',
+    name: 'RADYO YAYINI',
+    desc: 'Frekans yayını yap. Yeni survivorlar duyabilir, düşman da.',
+    duration: 80,
+    rewards: { survivor_bonus: true, energy: [-3] },
+    rewardText: ['+Survivor Şansı', '-Enerji'],
+    rewardColor: ['pos', 'neg'],
+    cost: { energy: 3 },
+    category: 'base',
+    available: () => STATE.resources.energy >= 3,
+  },
+  {
+    id: 'trap_build',
+    icon: '🪤',
+    name: 'TUZAK KUR',
+    desc: 'Üs çevresine uyarı tuzakları yerleştir.',
+    duration: 160,
+    rewards: { traps: 1, parts: [-4] },
+    rewardText: ['+1 Tuzak', '-4 Parça'],
+    rewardColor: ['pos', 'neg'],
+    cost: { parts: 4 },
+    category: 'base',
+    available: () => STATE.resources.parts >= 4,
+  },
+];
+
+// FARM SYSTEM
+const CROPS = [
+  { id: 'potato', name: 'PATATES', icon: '🥔', growTime: 300, yield: [6,12], stages: ['🌱','🌿','🥔'] },
+  { id: 'tomato', name: 'DOMATES', icon: '🍅', growTime: 240, yield: [4,9], stages: ['🌱','🌿','🍅'] },
+  { id: 'corn',   name: 'MISIR',   icon: '🌽', growTime: 360, yield: [8,15], stages: ['🌱','🌾','🌽'] },
+  { id: 'herb',   name: 'OT/İLAÇ', icon: '🌿', growTime: 200, yield: [2,5], stages: ['🌱','🌿','🌿'], isMed: true },
+];
+
+// STATE additions
+STATE.activities = {
+  activeTask: null,       // { id, startTime, duration, progress }
+  completedToday: [],
+  traps: 0,
+  diseasRisk: 30,
+  morale: 50,
+  threatLevel: 0,
+};
+STATE.farm = {
+  plots: Array(6).fill(null).map(() => ({ crop: null, plantedAt: null, stage: 0, ready: false })),
+  unlocked: 3, // start with 3 plots unlocked
+};
+
+// ---- Active task tick ----
+function taskTick(dt) {
+  if (!STATE.activities.activeTask) return;
+  const task = STATE.activities.activeTask;
+  task.elapsed = (task.elapsed || 0) + dt;
+  const progress = Math.min(1, task.elapsed / task.duration);
+
+  // Update banner
+  const banner = document.getElementById('active-task-banner');
+  banner.classList.add('show');
+  const remaining = Math.max(0, task.duration - task.elapsed);
+  const m = Math.floor(remaining / 60).toString().padStart(2,'0');
+  const s = Math.floor(remaining % 60).toString().padStart(2,'0');
+  document.getElementById('banner-text').textContent = '⚒ ' + task.name;
+  document.getElementById('banner-fill').style.width = (progress * 100) + '%';
+  document.getElementById('banner-time').textContent = m + ':' + s;
+
+  if (progress >= 1) {
+    completeTask(task);
+    STATE.activities.activeTask = null;
+    banner.classList.remove('show');
+    renderActivities();
+  }
+}
+
+function farmTick(dt) {
+  STATE.farm.plots.forEach(plot => {
+    if (!plot.crop || plot.ready) return;
+    const elapsed = (Date.now() - plot.plantedAt) / 1000;
+    const progress = elapsed / plot.crop.growTime;
+    plot.stage = Math.min(2, Math.floor(progress * 3));
+    if (progress >= 1) { plot.ready = true; plot.stage = 2; }
+  });
+}
+
+function completeTask(task) {
+  const def = ACTIVITIES.find(a => a.id === task.id);
+  if (!def) return;
+  let summary = [];
+
+  const R = def.rewards;
+  if (R.food) {
+    const v = Array.isArray(R.food) ? randInt(...R.food) : R.food;
+    STATE.resources.food = Math.max(0, STATE.resources.food + v);
+    summary.push((v>0?'+':'')+v+'🍖');
+  }
+  if (R.parts) {
+    const v = Array.isArray(R.parts) ? randInt(...R.parts) : R.parts;
+    STATE.resources.parts = Math.max(0, STATE.resources.parts + v);
+    summary.push((v>0?'+':'')+v+'🔧');
+  }
+  if (R.meds) {
+    const v = Array.isArray(R.meds) ? randInt(...R.meds) : R.meds;
+    STATE.resources.meds = Math.max(0, STATE.resources.meds + v);
+    summary.push((v>0?'+':'')+v+'💊');
+  }
+  if (R.caps) {
+    const v = Array.isArray(R.caps) ? randInt(...R.caps) : R.caps;
+    STATE.resources.caps = Math.max(0, STATE.resources.caps + v);
+    summary.push((v>0?'+':'')+v+'🪙');
+  }
+  if (R.energy) {
+    const v = Array.isArray(R.energy) ? randInt(...R.energy) : R.energy;
+    STATE.resources.energy = Math.max(0, STATE.resources.energy + v);
+    summary.push((v>0?'+':'')+v+'🔋');
+  }
+  if (R.morale) { STATE.activities.morale = clamp(STATE.activities.morale + R.morale, 0, 100); summary.push('+'+ R.morale+'😊'); }
+  if (R.defense_bonus) { STATE.base.upgrades.walls += 0; STATE.activities.trapBonus = (STATE.activities.trapBonus||0) + R.defense_bonus; summary.push('+Sav'); }
+  if (R.traps) { STATE.activities.traps = (STATE.activities.traps||0) + 1; summary.push('+1🪤'); }
+  if (R.survivor_bonus) {
+    STATE.gate.timer = Math.min(STATE.gate.timer, 30);
+    summary.push('Yayın gönderildi!');
+  }
+  if (R.threat_info) {
+    const info = ['Batıda hareket yok', 'Kuzeyde küçük grup tespit edildi', 'Yakın tehdit görünmüyor', 'Doğuda zombi sürüsü yaklaşıyor!'];
+    const msg = randFrom(info);
+    summary.push('Gözetleme: ' + msg);
+    if (msg.includes('zombi')) { showNotification('⚠️ TEHDİT: ' + msg, true); }
+  }
+
+  STATE.activities.completedToday.push(task.id);
+  addLog(`✅ [${def.name}] tamamlandı: ${summary.join(' ')}`, 'success');
+  showNotification('✅ ' + def.name + ' tamam! ' + summary.join(' '), false);
+  updateUI();
+}
+
+function cancelTask() {
+  if (!STATE.activities.activeTask) return;
+  addLog(`[${STATE.activities.activeTask.name}] iptal edildi.`, 'warning');
+  STATE.activities.activeTask = null;
+  document.getElementById('active-task-banner').classList.remove('show');
+  renderActivities();
+}
+
+function startActivity(id) {
+  if (STATE.activities.activeTask) {
+    showNotification('Önce mevcut görevi bitir!', true);
+    return;
+  }
+  const def = ACTIVITIES.find(a => a.id === id);
+  if (!def || !def.available()) return;
+
+  // Deduct costs
+  if (def.cost.energy) STATE.resources.energy = Math.max(0, STATE.resources.energy - def.cost.energy);
+  if (def.cost.food) STATE.resources.food = Math.max(0, STATE.resources.food - def.cost.food);
+  if (def.cost.parts) STATE.resources.parts = Math.max(0, STATE.resources.parts - def.cost.parts);
+
+  STATE.activities.activeTask = { id, name: def.name, duration: def.duration, elapsed: 0 };
+  addLog(`⚒ [${def.name}] başlatıldı.`, '');
+  showNotification('⚒ ' + def.name + ' başladı', false);
+  renderActivities();
+  updateUI();
+}
+
+function renderActivities() {
+  const el = document.getElementById('activity-list');
+  if (!el) return;
+
+  el.innerHTML = ACTIVITIES.map(act => {
+    const isActive = STATE.activities.activeTask?.id === act.id;
+    const isAvailable = act.available();
+    const lockedClass = !isAvailable ? 'locked' : '';
+    const activeClass = isActive ? 'active-task' : '';
+
+    const progress = isActive ? (STATE.activities.activeTask.elapsed / act.duration) : 0;
+    const remaining = isActive ? Math.max(0, act.duration - STATE.activities.activeTask.elapsed) : act.duration;
+    const m = Math.floor(remaining/60).toString().padStart(2,'0');
+    const s = Math.floor(remaining%60).toString().padStart(2,'0');
+
+    const costStr = Object.entries(act.cost).map(([k,v]) => {
+      const icons = {food:'🍖',parts:'🔧',energy:'🔋',meds:'💊',caps:'🪙'};
+      return `<span class="reward-chip neg">${icons[k]||k} -${v}</span>`;
+    }).join('');
+
+    const rewardStr = act.rewardText.map((t,i) => `<span class="reward-chip ${act.rewardColor[i]}">${t}</span>`).join('');
+
+    return `
+      <div class="activity-card ${lockedClass} ${activeClass}" onclick="${isAvailable && !STATE.activities.activeTask ? `startActivity('${act.id}')` : ''}">
+        <div class="act-header">
+          <span class="act-icon">${act.icon}</span>
+          <span class="act-name">${act.name}</span>
+          <span class="act-badge ${isActive ? 'amber' : ''}">${isActive ? 'AKTİF' : m+':'+s}</span>
+        </div>
+        <div class="act-desc">${act.desc}</div>
+        <div class="act-rewards">${costStr}${rewardStr}</div>
+        ${isActive ? `
+          <div class="task-progress-wrap"><div class="task-progress-fill" style="width:${progress*100}%"></div></div>
+          <div class="task-time-left">${m}:${s} kaldı</div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  renderFarm();
+}
+
+// FARM
+function renderFarm() {
+  const el = document.getElementById('farm-section');
+  if (!el) return;
+  const plots = STATE.farm.plots;
+
+  el.innerHTML = `
+    <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px; line-height:1.6;">
+      Tarla oluştur, ürün yetiştir. Ekin zamanla büyür, hazır olunca topla.
+    </div>
+    <div class="farm-grid">
+      ${plots.map((plot, i) => {
+        const unlocked = i < STATE.farm.unlocked;
+        if (!unlocked) {
+          return `<div class="farm-plot locked" style="opacity:0.3;font-size:14px;" onclick="unlockPlot(${i})">🔒<div class="plot-label">KİLİTLİ</div></div>`;
+        }
+        if (!plot.crop) {
+          return `<div class="farm-plot empty" onclick="showPlantModal(${i})">➕<div class="plot-label">BOŞ TARLA</div></div>`;
+        }
+        const stageIcon = plot.crop.stages[plot.stage] || plot.crop.icon;
+        const pct = plot.ready ? 100 : Math.min(99, Math.round(((Date.now() - plot.plantedAt)/1000) / plot.crop.growTime * 100));
+        if (plot.ready) {
+          return `<div class="farm-plot ready" onclick="harvestPlot(${i})">${stageIcon}<div class="plot-label">HASAT ET!</div></div>`;
+        }
+        return `<div class="farm-plot growing">
+          ${stageIcon}
+          <div class="plot-label">${plot.crop.name}</div>
+          <div class="plot-stage">%${pct}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${STATE.farm.unlocked < 6 ? `<div style="margin-top:8px;font-size:10px;color:var(--text-dim);">🔒 ${6-STATE.farm.unlocked} tarla daha açılabilir (Geliştirmeler)</div>` : ''}
+  `;
+}
+
+function showPlantModal(plotIdx) {
+  const body = `
+    <div style="font-size:11px; color:var(--text-dim); margin-bottom:12px; letter-spacing:1px;">Hangi ürünü ekmek istiyorsun?</div>
+    ${CROPS.map(crop => `
+      <div class="activity-card" onclick="plantCrop(${plotIdx},'${crop.id}')" style="margin-bottom:8px;">
+        <div class="act-header">
+          <span class="act-icon">${crop.icon}</span>
+          <span class="act-name">${crop.name}</span>
+          <span class="act-badge">${Math.floor(crop.growTime/60)}dk büyüme</span>
+        </div>
+        <div class="act-rewards">
+          <span class="reward-chip pos">+${crop.yield[0]}-${crop.yield[1]} ${crop.isMed ? '💊' : '🍖'}</span>
+        </div>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('modal-title').textContent = 'EKIM YAP';
+  document.getElementById('modal-subtitle').textContent = 'TARLA #' + (plotIdx + 1);
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function plantCrop(plotIdx, cropId) {
+  const crop = CROPS.find(c => c.id === cropId);
+  if (!crop) return;
+  STATE.farm.plots[plotIdx] = { crop, plantedAt: Date.now(), stage: 0, ready: false };
+  addLog(`🌱 Tarla #${plotIdx+1}: ${crop.name} ekildi.`, 'success');
+  closeModal();
+  renderActivities();
+}
+
+function harvestPlot(plotIdx) {
+  const plot = STATE.farm.plots[plotIdx];
+  if (!plot.ready) return;
+  const amount = randInt(...plot.crop.yield);
+  if (plot.crop.isMed) {
+    STATE.resources.meds += amount;
+    addLog(`🌿 Tarla #${plotIdx+1} hasat: +${amount} İlaç`, 'success');
+    showNotification(`💊 Hasat: +${amount} İlaç`, false);
+  } else {
+    STATE.resources.food += amount;
+    addLog(`${plot.crop.icon} Tarla #${plotIdx+1} hasat: +${amount} Yiyecek`, 'success');
+    showNotification(`🍖 Hasat: +${amount} Yiyecek`, false);
+  }
+  STATE.farm.plots[plotIdx] = { crop: null, plantedAt: null, stage: 0, ready: false };
+  updateUI();
+  renderActivities();
+}
+
+function unlockPlot(i) {
+  showNotification('Geliştirmeler menüsünden tarla aç!', false);
+}
+
+
+// ==================== SOCIAL & RELATIONSHIP SYSTEM ====================
+STATE.social = {
+  relationships: [],     // { id, personA, personB, type: 'love'|'friend'|'enemy'|'tension'|'family'|'married', strength: 0-100 }
+  morale: 50,            // base morale 0-100
+  tensionLevel: 0,       // 0-100, triggers events
+  civilWarRisk: 0,       // 0-100
+  alerts: [],            // pending social alerts { id, msg, type, actionFn }
+  pregnancies: [],       // { motherId, fatherId, daysLeft }
+};
+
+STATE.missions = {
+  active: [],    // ongoing missions
+  available: [], // generated missions
+  completed: [],
+};
+
+STATE.nightRaid = {
+  pending: false,
+  raidStrength: 0,
+  countdown: null,
+};
+
+// ==================== RELATIONSHIP ENGINE ====================
+function getRelationship(idA, idB) {
+  return STATE.social.relationships.find(r =>
+    (r.personA === idA && r.personB === idB) ||
+    (r.personA === idB && r.personB === idA)
+  );
+}
+
+function setRelationship(idA, idB, type, strength) {
+  let rel = getRelationship(idA, idB);
+  if (rel) { rel.type = type; rel.strength = clamp(strength, 0, 100); }
+  else STATE.social.relationships.push({ id: Date.now()+Math.random(), personA: idA, personB: idB, type, strength: clamp(strength,0,100) });
+}
+
+function removeRelationship(idA, idB) {
+  STATE.social.relationships = STATE.social.relationships.filter(r =>
+    !((r.personA === idA && r.personB === idB) || (r.personA === idB && r.personB === idA))
+  );
+}
+
+function getAllPeopleInBase() {
+  return [...STATE.people, ...STATE.quarantined, ...STATE.imprisoned];
+}
+
+function getPersonById(id) {
+  return getAllPeopleInBase().find(p => String(p.id) === String(id));
+}
+
+// Called each day — generates social events
+function processSocialDay() {
+  const people = STATE.people; // only free people interact
+  if (people.length < 2) return;
+
+  // 1. RANDOM RELATIONSHIP EVENTS
+  for (let i = 0; i < Math.min(3, people.length); i++) {
+    const a = randFrom(people);
+    const b = randFrom(people.filter(p => p.id !== a.id));
+    if (!b) continue;
+
+    const existing = getRelationship(a.id, b.id);
+    const ageCompatible = Math.abs(a.age - b.age) <= 15;
+    const genderCompatible = a.male !== b.male;
+    const bothAdult = !a.isChild && !b.isChild;
+    const bothSingle = !a.partnerId && !b.partnerId && !a.spouseId && !b.spouseId;
+
+    // Friendship formation
+    if (!existing && Math.random() < 0.25) {
+      setRelationship(a.id, b.id, 'friend', randInt(20,50));
+      if (Math.random() < 0.4) addLog(`${a.name} ve ${b.name} arkadaş oldu.`, 'success');
+    }
+
+    // Romance formation
+    if (!existing && genderCompatible && ageCompatible && bothAdult && bothSingle && Math.random() < 0.15) {
+      setRelationship(a.id, b.id, 'love', randInt(30,60));
+      a.partnerId = b.id; b.partnerId = a.id;
+      addLog(`💕 ${a.name} ve ${b.name} birbirine ilgi duymaya başladı!`, 'success');
+      addSocialAlert(`💕 ${a.name} & ${b.name} arasında romantik bir yakınlaşma var!`, 'romance', null);
+    }
+
+    // Existing relationship progression
+    if (existing) {
+      if (existing.type === 'love') {
+        existing.strength = clamp(existing.strength + randInt(-5, 10), 0, 100);
+
+        // Breakup
+        if (existing.strength < 15 && Math.random() < 0.4) {
+          const pa = getPersonById(existing.personA);
+          const pb = getPersonById(existing.personB);
+          if (pa) pa.partnerId = null;
+          if (pb) pb.partnerId = null;
+          removeRelationship(existing.personA, existing.personB);
+          addLog(`💔 ${pa?.name||'?'} ve ${pb?.name||'?'} ayrıldı.`, 'warning');
+          // May become enemies
+          if (Math.random() < 0.35) {
+            setRelationship(existing.personA, existing.personB, 'enemy', randInt(40,70));
+            if (pa) pa.enemyIds = [...(pa.enemyIds||[]), existing.personB];
+            if (pb) pb.enemyIds = [...(pb.enemyIds||[]), existing.personA];
+            addLog(`😡 Ayrılık sonrası ${pa?.name||'?'} ve ${pb?.name||'?'} düşman oldu!`, 'danger');
+          }
+          return;
+        }
+
+        // Marriage
+        if (existing.strength >= 80 && bothAdult && !a.spouseId && !b.spouseId && Math.random() < 0.2) {
+          a.spouseId = b.id; b.spouseId = a.id;
+          a.partnerId = b.id; b.partnerId = a.id;
+          setRelationship(a.id, b.id, 'married', 90);
+          addLog(`💍 ${a.name} ve ${b.name} evlendi! Üste ilk aile kuruldu.`, 'success');
+          addSocialAlert(`💍 ${a.name} & ${b.name} evlenmek istiyor! Onaylıyor musunuz?`, 'marriage', () => {
+            showNotification('Evlilik kutlandı! +10 Moral', false);
+            STATE.social.morale = clamp(STATE.social.morale + 10, 0, 100);
+          });
+          return;
+        }
+
+        // Pregnancy
+        if (existing.strength >= 60 && a.spouseId === b.id && !STATE.social.pregnancies.find(p => p.motherId === (a.male ? b.id : a.id)) && Math.random() < 0.2) {
+          const mother = a.male ? b : a;
+          const father = a.male ? a : b;
+          if (mother && father && !mother.isChild) {
+            STATE.social.pregnancies.push({ motherId: mother.id, fatherId: father.id, daysLeft: 7 });
+            mother.trait = 'HAMİLE';
+            addLog(`🍼 ${mother.name} hamile! ${father.name} baba olacak.`, 'success');
+            addSocialAlert(`🍼 ${mother.name} hamile! Klinik & kaynaklar hazır mı?`, 'pregnancy', null);
+          }
+        }
+      }
+
+      // Friend -> tension from overcrowding
+      if (existing.type === 'friend' && STATE.people.length >= STATE.base.maxPop * 0.8) {
+        if (Math.random() < 0.1) {
+          existing.type = 'tension';
+          addLog(`😤 ${a.name} ile ${b.name} arasında gerginlik başladı.`, 'warning');
+        }
+      }
+
+      // Tension -> conflict
+      if (existing.type === 'tension') {
+        existing.strength = clamp(existing.strength + randInt(5, 15), 0, 100);
+        STATE.social.tensionLevel = clamp(STATE.social.tensionLevel + 5, 0, 100);
+        if (existing.strength >= 70 && Math.random() < 0.3) {
+          setRelationship(a.id, b.id, 'enemy', existing.strength);
+          addLog(`⚔️ ${a.name} ile ${b.name} kavga etti! Her ikisi de yaralandı.`, 'danger');
+          a.health = clamp(a.health - randInt(5,15), 0, 100);
+          b.health = clamp(b.health - randInt(5,15), 0, 100);
+          addSocialAlert(`⚔️ Kavga: ${a.name} vs ${b.name}! Müdahale et!`, 'conflict', () => resolveConflict(a.id, b.id));
+        }
+      }
+
+      // Enemy -> morale drain
+      if (existing.type === 'enemy') {
+        STATE.social.tensionLevel = clamp(STATE.social.tensionLevel + 8, 0, 100);
+        STATE.social.morale = clamp(STATE.social.morale - 2, 0, 100);
+      }
+    }
+  }
+
+  // 2. OVERCROWDING TENSION
+  const crowdRatio = STATE.people.length / Math.max(1, STATE.base.maxPop);
+  if (crowdRatio >= 0.9) {
+    STATE.social.tensionLevel = clamp(STATE.social.tensionLevel + 10, 0, 100);
+    if (Math.random() < 0.3) addSocialAlert('😤 ÜS KALABALIKLAŞıYOR! İnsanlar huzursuz.', 'crowding', null);
+  }
+
+  // 3. PRISON OVERCROWDING -> REVOLT RISK
+  const guards = STATE.people.filter(p => p.trait === 'ASKER' || p.trait === 'GÜVENLİK').length;
+  if (STATE.imprisoned.length > guards * 2 + 1) {
+    STATE.social.tensionLevel = clamp(STATE.social.tensionLevel + 20, 0, 100);
+    addSocialAlert('⚠️ HAPISHANEDE GÜVENLİK YETERSİZ! İsyan riski var!', 'prisonrisk', () => startPrisonRevolt());
+    addLog('⚠️ Hücrelerde güvenlik açığı! Muhafız sayısı yetersiz.', 'danger');
+  }
+
+  // 4. CIVIL WAR RISK
+  const enemies = STATE.social.relationships.filter(r => r.type === 'enemy').length;
+  STATE.social.civilWarRisk = clamp(
+    STATE.social.tensionLevel * 0.5 + enemies * 5 - STATE.social.morale * 0.3,
+    0, 100
+  );
+  if (STATE.social.civilWarRisk >= 80) {
+    addSocialAlert('🔥 İÇ SAVAŞ KAPIDA! Gerilim kritik seviyede!', 'civilwar', () => showCivilWarModal());
+    addLog('🔥 UYARI: İç çatışma riski kritik seviyeye ulaştı!', 'danger');
+  }
+
+  // 5. DISEASE SPREAD FROM CLINIC OVERFLOW
+  const doctors = STATE.people.filter(p => p.trait === 'DOKTOR').length;
+  const nurses = STATE.people.filter(p => p.trait === 'TIP' || p.trait === 'HEMŞİRE').length;
+  const sickPeople = getAllPeopleInBase().filter(p => p.infected || p.health < 30).length;
+  const clinicCapacity = STATE.base.upgrades.clinic ? (doctors * 3 + nurses * 2 + 2) : 1;
+
+  if (sickPeople > clinicCapacity) {
+    // Disease spreads to healthy people
+    const healthyPeople = STATE.people.filter(p => !p.infected && p.health > 50);
+    if (healthyPeople.length > 0 && Math.random() < 0.4) {
+      const victim = randFrom(healthyPeople);
+      victim.infected = true;
+      victim.health = clamp(victim.health - 20, 0, 100);
+      addLog(`🦠 Hastane kapasitesi aşıldı! ${victim.name} hastalandı ve enfeksiyon yayıldı!`, 'danger');
+      addSocialAlert(`🦠 Klinik kapasitesi aşıldı! Hastalık yayılıyor!`, 'epidemic', null);
+      STATE.social.morale = clamp(STATE.social.morale - 10, 0, 100);
+    }
+  }
+
+  // 6. MORALE RECOVERY
+  if (STATE.social.tensionLevel < 30 && Math.random() < 0.3) {
+    STATE.social.morale = clamp(STATE.social.morale + 3, 0, 100);
+  }
+
+  renderSocialTab();
+}
+
+function addSocialAlert(msg, type, actionFn) {
+  const alert = { id: Date.now() + Math.random(), msg, type, actionFn };
+  STATE.social.alerts.unshift(alert);
+  if (STATE.social.alerts.length > 8) STATE.social.alerts.pop();
+  renderSocialTab();
+  showNotification('⚠️ ' + msg.substring(0,40), type === 'conflict' || type === 'epidemic' || type === 'civilwar');
+}
+
+function dismissSocialAlert(id) {
+  const alert = STATE.social.alerts.find(a => a.id == id);
+  if (alert && alert.actionFn) alert.actionFn();
+  STATE.social.alerts = STATE.social.alerts.filter(a => a.id != id);
+  renderSocialTab();
+}
+
+function resolveConflict(idA, idB) {
+  const a = getPersonById(idA), b = getPersonById(idB);
+  // Mediation costs morale but reduces tension
+  STATE.social.tensionLevel = clamp(STATE.social.tensionLevel - 20, 0, 100);
+  const rel = getRelationship(idA, idB);
+  if (rel) rel.type = 'tension';
+  addLog(`🕊️ ${a?.name||'?'} ile ${b?.name||'?'} arasındaki çatışma yatıştırıldı.`, 'success');
+  showNotification('Çatışma çözüldü, gerilim düştü', false);
+}
+
+function startPrisonRevolt() {
+  const prisoner = randFrom(STATE.imprisoned);
+  if (!prisoner) return;
+  // Prisoner escapes and becomes enemy
+  STATE.imprisoned = STATE.imprisoned.filter(p => p.id !== prisoner.id);
+  prisoner.location = 'barracks';
+  prisoner.suspicious = true;
+  prisoner.danger = 80;
+  STATE.people.push(prisoner);
+  addLog(`💥 İSYAN! ${prisoner.name} hücreden kaçtı ve üste saldırdı!`, 'danger');
+  STATE.people.forEach(p => { if (Math.random() < 0.3) p.health = clamp(p.health - randInt(10,25), 0, 100); });
+  STATE.resources.food = Math.max(0, STATE.resources.food - randInt(5, 15));
+  showNotification('💥 HAPISHANE İSYANI!', true);
+}
+
+function showCivilWarModal() {
+  const body = `
+    <div style="color:var(--red);font-family:'Oswald',sans-serif;font-size:14px;margin-bottom:12px;letter-spacing:2px;">
+      ⚠️ İÇ ÇATIŞMA RİSKİ KRİTİK SEVİYEDE
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;line-height:1.8;">
+      Üsteki gerilim kontrolden çıkma noktasına geldi. Bir şeyler yapmazsan gruplar birbirine girecek.
+    </div>
+    <div class="decision-grid">
+      <button class="decision-btn accept" onclick="pacifyBase();closeModal()">
+        <span class="d-icon">🕊️</span>
+        UZLAŞTIR<br><span style="font-size:9px">-10 Yiyecek, -5 Parça</span>
+      </button>
+      <button class="decision-btn prison" onclick="isolateLeaders();closeModal()">
+        <span class="d-icon">🔒</span>
+        LİDERLERİ KİLİTLE<br><span style="font-size:9px">Gerilim azalır</span>
+      </button>
+      <button class="decision-btn execute" onclick="closedModal()">
+        <span class="d-icon">💀</span>
+        MÜDAHALE ETME<br><span style="font-size:9px">Risk: İç savaş</span>
+      </button>
+    </div>
+  `;
+  document.getElementById('modal-title').textContent = 'İÇ ÇATIŞMA TEHDİDİ';
+  document.getElementById('modal-subtitle').textContent = `GERİLİM: ${Math.floor(STATE.social.civilWarRisk)}%`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function pacifyBase() {
+  STATE.resources.food = Math.max(0, STATE.resources.food - 10);
+  STATE.resources.parts = Math.max(0, STATE.resources.parts - 5);
+  STATE.social.tensionLevel = clamp(STATE.social.tensionLevel - 35, 0, 100);
+  STATE.social.morale = clamp(STATE.social.morale + 20, 0, 100);
+  STATE.social.civilWarRisk = 0;
+  // Convert some enemy relationships to neutral
+  STATE.social.relationships.filter(r => r.type === 'enemy').forEach(r => {
+    if (Math.random() < 0.5) r.type = 'tension';
+  });
+  addLog('🕊️ Yönetici araya girdi! Gerilim hafifledi, barış sağlandı.', 'success');
+  renderSocialTab();
+}
+
+function isolateLeaders() {
+  const aggressors = STATE.people.filter(p => p.personality === 'SALDIRGAN').slice(0,2);
+  aggressors.forEach(p => {
+    STATE.people = STATE.people.filter(x => x.id !== p.id);
+    p.location = 'prison';
+    STATE.imprisoned.push(p);
+    addLog(`🔒 ${p.name} izole edildi.`, 'warning');
+  });
+  STATE.social.tensionLevel = clamp(STATE.social.tensionLevel - 25, 0, 100);
+  updateUI();
+}
+
+// Pregnancy progression
+function processPregnancies() {
+  STATE.social.pregnancies.forEach((preg, idx) => {
+    preg.daysLeft--;
+    if (preg.daysLeft <= 0) {
+      const mother = getPersonById(preg.motherId);
+      if (mother) {
+        // Check clinic for safe delivery
+        const hasMed = STATE.base.upgrades.clinic && STATE.resources.meds >= 3;
+        if (!hasMed) {
+          // Risky birth
+          if (Math.random() < 0.3) {
+            addLog(`💀 ${mother.name} doğumda yaşamını yitirdi. Klinik yoktu.`, 'danger');
+            // Remove mother
+            STATE.people = STATE.people.filter(p => p.id !== mother.id);
+          } else {
+            mother.trait = randFrom(['DOKTOR','ASKER','MÜHENDİS','ÇIFTÇI']);
+            mother.health = clamp(mother.health - 20, 10, 100);
+            addLog(`⚠️ ${mother.name} doğum yaptı ama klinik yoktu. Riskli geçti.`, 'warning');
+          }
+        } else {
+          STATE.resources.meds -= 3;
+          mother.trait = randFrom(['DOKTOR','ASKER','MÜHENDİS','ÇIFTÇI']);
+          addLog(`🍼 ${mother.name} sağlıklı doğum yaptı!`, 'success');
+        }
+
+        // Create child
+        const childNames = ['Asya','Arda','Ela','Can','Nil','Ada','Berk','Su','Toprak'];
+        const childMale = Math.random() > 0.5;
+        const child = {
+          id: Date.now() + Math.random(),
+          name: randFrom(childNames),
+          emoji: childMale ? '👦' : '👧',
+          trait: 'ÇOCUk', health: 80, infected: false, suspicious: false, danger: 0,
+          skills: { combat: 5, medical: 5, engineering: 5, farming: 5, morale: 80 },
+          items: [], foodNeeded: 0.5, male: childMale, age: 0,
+          personality: 'NEŞELİ',
+          location: 'barracks', daysInBase: 0, happiness: 90,
+          partnerId: null, spouseId: null, childrenIds: [], pregnantDays: 0,
+          enemyIds: [], friendIds: [], onMission: null, isChild: true,
+        };
+        STATE.people.push(child);
+        if (mother) {
+          mother.childrenIds = [...(mother.childrenIds||[]), child.id];
+          const father = getPersonById(preg.fatherId);
+          if (father) father.childrenIds = [...(father.childrenIds||[]), child.id];
+          // Family relationship
+          setRelationship(mother.id, child.id, 'family', 95);
+          if (father) setRelationship(father.id, child.id, 'family', 95);
+        }
+        addSocialAlert(`🍼 Yeni doğan: ${child.name}! Üste ilk çocuk!`, 'birth', null);
+      }
+      STATE.social.pregnancies.splice(idx, 1);
+    }
+  });
+}
+
+function renderSocialTab() {
+  // Status bar
+  const sb = document.getElementById('social-status-bar');
+  if (!sb) return;
+  const moraleColor = STATE.social.morale > 60 ? 'var(--green)' : STATE.social.morale > 30 ? 'var(--amber)' : 'var(--red)';
+  const tensionColor = STATE.social.tensionLevel > 60 ? 'var(--red)' : STATE.social.tensionLevel > 30 ? 'var(--amber)' : 'var(--green)';
+  sb.innerHTML = `
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px;">MORAL</div>
+    <div class="morale-bar-wrap"><div class="morale-bar-fill" style="width:${STATE.social.morale}%;background:${moraleColor}"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-dim);margin-bottom:6px;">
+      <span>${Math.floor(STATE.social.morale)}%</span>
+      <span style="color:${STATE.social.civilWarRisk>50?'var(--red)':'var(--text-dim)'}">İÇ SAVAŞ RİSKİ: ${Math.floor(STATE.social.civilWarRisk)}%</span>
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px;">GERİLİM</div>
+    <div class="morale-bar-wrap"><div class="morale-bar-fill" style="width:${STATE.social.tensionLevel}%;background:${tensionColor}"></div></div>
+    <div style="font-size:9px;color:var(--text-dim);margin-bottom:4px;">${Math.floor(STATE.social.tensionLevel)}%</div>
+  `;
+
+  // Alerts
+  const alertsEl = document.getElementById('social-alerts');
+  if (alertsEl) {
+    alertsEl.innerHTML = STATE.social.alerts.length === 0
+      ? '<div style="font-size:10px;color:var(--text-dim);padding:4px 0;">Şu an aktif uyarı yok.</div>'
+      : STATE.social.alerts.map(a => `
+          <div class="social-alert ${a.type==='conflict'||a.type==='civilwar'||a.type==='epidemic'||a.type==='prisonrisk'?'danger-alert':''} ${a.type==='civilwar'?'crisis':''}"
+               onclick="dismissSocialAlert(${a.id})">
+            ${a.msg}
+            ${a.actionFn ? '<span style="color:var(--green);margin-left:6px;">[MÜDAHALE ET]</span>' : '<span style="opacity:0.5;margin-left:6px;">[KAPAT]</span>'}
+          </div>`
+      ).join('');
+  }
+
+  // Relationships
+  const relEl = document.getElementById('relationships-list');
+  if (relEl) {
+    const rels = STATE.social.relationships.slice(0,12);
+    if (rels.length === 0) {
+      relEl.innerHTML = '<div style="font-size:10px;color:var(--text-dim);">Henüz ilişki yok...</div>';
+    } else {
+      relEl.innerHTML = rels.map(r => {
+        const a = getPersonById(r.personA);
+        const b = getPersonById(r.personB);
+        if (!a || !b) return '';
+        const typeLabel = {love:'💕 AŞK',friend:'🤝 ARKADAŞ',enemy:'😡 DÜŞMAN',tension:'😤 GERGİN',family:'👨‍👩‍👦 AİLE',married:'💍 EVLİ'}[r.type] || r.type;
+        const heart = {love:'❤️',friend:'🤝',enemy:'💢',tension:'⚡',family:'👶',married:'💍'}[r.type] || '·';
+        return `
+          <div class="rel-card ${r.type}">
+            <span class="rel-heart">${heart}</span>
+            <div class="rel-names">${a.name} & ${b.name}</div>
+            <div class="rel-type">${typeLabel} · Güç: ${Math.floor(r.strength)}%</div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  // Missions
+  renderMissions();
+}
+
+// ==================== MISSION SYSTEM ====================
+const MISSION_TEMPLATES = [
+  { id: 'scavenge_city', icon: '🏙️', name: 'Şehir Talaması', desc: 'Harap şehri tara, kaynak topla. Tehlikeli.', duration: 2, minPeople: 2, rewards: { food: [10,25], parts: [8,15], caps: [5,15], meds: [0,8] }, risk: 0.3 },
+  { id: 'medical_run', icon: '💊', name: 'İlaç Baskını', desc: 'Eski hastaneyi ara. Tıbbi malzeme bul.', duration: 1, minPeople: 1, rewards: { meds: [10,20], food: [2,6] }, risk: 0.25 },
+  { id: 'recon', icon: '🔭', name: 'Keşif Görevi', desc: 'Çevreyi keşfet, tehdit bilgisi topla.', duration: 1, minPeople: 1, rewards: { caps: [8,15], energy: [5,10] }, risk: 0.15 },
+  { id: 'weapon_cache', icon: '🗡️', name: 'Silah Deposu', desc: 'Eski askeri üste silah ve parça ara.', duration: 3, minPeople: 3, rewards: { parts: [15,30], caps: [10,20] }, risk: 0.5 },
+  { id: 'farm_expansion', icon: '🌾', name: 'Tarım Alanı', desc: 'Yakın çiftliği güvenli hale getir.', duration: 2, minPeople: 2, rewards: { food: [20,40] }, risk: 0.2 },
+  { id: 'rescue_op', icon: '🚑', name: 'Kurtarma Operasyonu', desc: 'Sinyali yakalanan bir survivor grubu var.', duration: 2, minPeople: 2, rewards: { food: [5,10], meds: [3,8] }, risk: 0.3, givesSurvivor: true },
+];
+
+function generateMissions() {
+  const available = [];
+  const count = randInt(2, 4);
+  const shuffled = [...MISSION_TEMPLATES].sort(() => Math.random()-0.5);
+  for (let i = 0; i < count; i++) {
+    const t = shuffled[i % shuffled.length];
+    available.push({ ...t, instanceId: Date.now() + i, assignedPeople: [] });
+  }
+  STATE.missions.available = available;
+  renderMissions();
+}
+
+function showMissionDetail(instanceId) {
+  const mission = STATE.missions.available.find(m => m.instanceId == instanceId)
+               || STATE.missions.active.find(m => m.instanceId == instanceId);
+  if (!mission) return;
+
+  const freePeople = STATE.people.filter(p => !p.onMission && !p.isChild);
+  const isActive = STATE.missions.active.some(m => m.instanceId == instanceId);
+
+  const body = `
+    <div style="font-size:36px;text-align:center;margin-bottom:8px;">${mission.icon}</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">${mission.desc}</div>
+    <div class="stat-row"><span class="stat-label">SÜRE</span><span class="stat-value">${mission.duration} gün</span></div>
+    <div class="stat-row"><span class="stat-label">MİN. KİŞİ</span><span class="stat-value">${mission.minPeople} kişi</span></div>
+    <div class="stat-row"><span class="stat-label">RİSK</span><span class="stat-value" style="color:var(--${mission.risk>0.4?'red':mission.risk>0.2?'amber':'green'})">${Math.floor(mission.risk*100)}%</span></div>
+    ${isActive ? `<div class="stat-row"><span class="stat-label">KALAN</span><span class="stat-value">${mission.daysLeft} gün</span></div>` : ''}
+
+    ${!isActive ? `
+    <div class="section-divider">GÖREV EKIBI SEÇ</div>
+    <div id="mission-crew-select" style="max-height:150px;overflow-y:auto;">
+      ${freePeople.length === 0
+        ? '<div style="font-size:10px;color:var(--text-dim);">Görevlendirilecek uygun kişi yok.</div>'
+        : freePeople.map(p => `
+          <div class="person-rel-row" onclick="toggleMissionAssign(${instanceId}, ${p.id}, this)">
+            <span style="font-size:16px">${p.emoji}</span>
+            <span class="pname">${p.name}</span>
+            <span class="pstatus">${p.trait} · Savaş:${p.skills.combat}</span>
+            <span id="assign-${instanceId}-${p.id}" style="font-size:12px;color:var(--text-dim)">⬜</span>
+          </div>`
+        ).join('')}
+    </div>
+    <button onclick="launchMission(${instanceId})" style="width:100%;margin-top:12px;padding:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green-bright);font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:2px;">
+      🚀 GÖREVİ BAŞLAT
+    </button>` : '<div style="color:var(--amber);font-size:11px;text-align:center;padding:10px;">Görev devam ediyor...</div>'}
+  `;
+  document.getElementById('modal-title').textContent = mission.name.toUpperCase();
+  document.getElementById('modal-subtitle').textContent = `GÖREV · Risk ${Math.floor(mission.risk*100)}%`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+
+  // temp assignment tracking
+  window._missionAssignments = window._missionAssignments || {};
+  window._missionAssignments[instanceId] = [];
+}
+
+function toggleMissionAssign(instanceId, personId, el) {
+  window._missionAssignments = window._missionAssignments || {};
+  window._missionAssignments[instanceId] = window._missionAssignments[instanceId] || [];
+  const arr = window._missionAssignments[instanceId];
+  const idx = arr.indexOf(personId);
+  const icon = document.getElementById(`assign-${instanceId}-${personId}`);
+  if (idx >= 0) {
+    arr.splice(idx, 1);
+    if (icon) icon.textContent = '⬜';
+  } else {
+    arr.push(personId);
+    if (icon) icon.textContent = '✅';
+  }
+}
+
+function launchMission(instanceId) {
+  const mission = STATE.missions.available.find(m => m.instanceId == instanceId);
+  if (!mission) return;
+  const assigned = (window._missionAssignments?.[instanceId] || []);
+  if (assigned.length < mission.minPeople) {
+    showNotification(`En az ${mission.minPeople} kişi gerekli!`, true); return;
+  }
+  // Remove from available, add to active
+  STATE.missions.available = STATE.missions.available.filter(m => m.instanceId != instanceId);
+  mission.assignedPeople = assigned;
+  mission.daysLeft = mission.duration;
+  // Mark people as on mission
+  assigned.forEach(pid => {
+    const p = getPersonById(pid);
+    if (p) { p.onMission = instanceId; p.location = 'GÖREV'; }
+  });
+  STATE.missions.active.push(mission);
+  addLog(`🚀 Görev başladı: ${mission.name} (${assigned.length} kişi)`, 'success');
+  showNotification(`🚀 ${mission.name} başladı!`, false);
+  closeModal();
+  updateUI();
+  renderMissions();
+}
+
+function processMissions() {
+  STATE.missions.active.forEach((mission, idx) => {
+    mission.daysLeft--;
+    if (mission.daysLeft <= 0) {
+      completeMission(mission);
+      STATE.missions.active.splice(idx, 1);
+    }
+  });
+  // Generate new missions if pool is low
+  if (STATE.missions.available.length < 2) generateMissions();
+}
+
+function completeMission(mission) {
+  const results = [];
+  let losses = 0;
+
+  mission.assignedPeople.forEach(pid => {
+    const p = getPersonById(pid);
+    if (!p) return;
+    p.onMission = null;
+    p.location = 'barracks';
+
+    // Risk check per person
+    if (Math.random() < mission.risk) {
+      const fate = Math.random();
+      if (fate < 0.4) {
+        // Death
+        STATE.people = STATE.people.filter(x => x.id !== p.id);
+        addLog(`💀 ${p.name} görevde hayatını kaybetti: ${mission.name}`, 'danger');
+        losses++;
+        // Grief for partner/spouse
+        const partner = p.spouseId ? getPersonById(p.spouseId) : null;
+        if (partner) {
+          partner.happiness = clamp((partner.happiness||50) - 30, 0, 100);
+          STATE.social.morale = clamp(STATE.social.morale - 10, 0, 100);
+          addLog(`💔 ${partner.name} eşini kaybetti. Üste yas var.`, 'warning');
+        }
+      } else {
+        // Injury
+        p.health = clamp(p.health - randInt(20, 40), 5, 100);
+        addLog(`🩹 ${p.name} görevden yaralı döndü.`, 'warning');
+      }
+    }
+  });
+
+  // Collect rewards
+  const R = mission.rewards;
+  const summary = [];
+  if (R.food) { const v = randInt(...R.food); STATE.resources.food += v; summary.push('+'+v+'🍖'); }
+  if (R.parts) { const v = randInt(...R.parts); STATE.resources.parts += v; summary.push('+'+v+'🔧'); }
+  if (R.caps) { const v = randInt(...R.caps); STATE.resources.caps += v; summary.push('+'+v+'🪙'); }
+  if (R.meds) { const v = randInt(...R.meds); STATE.resources.meds += v; summary.push('+'+v+'💊'); }
+  if (R.energy) { const v = randInt(...R.energy); STATE.resources.energy += v; summary.push('+'+v+'🔋'); }
+
+  if (mission.givesSurvivor && Math.random() < 0.7) {
+    const newSurv = generateSurvivor();
+    newSurv.location = 'barracks';
+    if (STATE.people.length < STATE.base.maxPop) {
+      STATE.people.push(newSurv);
+      summary.push(`+${newSurv.name}👤`);
+    } else {
+      STATE.gate.queue.push(newSurv);
+      summary.push(`${newSurv.name} kapıda!👤`);
+    }
+  }
+
+  addLog(`✅ Görev tamamlandı: ${mission.name} — ${summary.join(' ')} ${losses>0?'⚠️'+losses+' kayıp':''}`, losses > 0 ? 'warning' : 'success');
+  showNotification(`✅ ${mission.name} tamam! ${summary.slice(0,3).join(' ')}`, losses > 0);
+  STATE.missions.completed.push({ ...mission, completedDay: STATE.day });
+  updateUI();
+}
+
+function renderMissions() {
+  const el = document.getElementById('missions-list');
+  if (!el) return;
+  const all = [...STATE.missions.available.map(m => ({...m, status:'available'})),
+               ...STATE.missions.active.map(m => ({...m, status:'active'}))];
+
+  if (all.length === 0) {
+    el.innerHTML = '<div style="font-size:10px;color:var(--text-dim);">Görev yok. Sonraki güne geç.</div>';
+    return;
+  }
+  el.innerHTML = all.map(m => `
+    <div class="mission-card ${m.status==='active'?'active':''}" onclick="showMissionDetail(${m.instanceId})">
+      <div class="mission-header">
+        <span class="mission-icon">${m.icon}</span>
+        <span class="mission-name">${m.name}</span>
+        <span class="mission-timer">${m.status==='active'?m.daysLeft+'g kaldı':m.duration+'g'}</span>
+      </div>
+      <div class="mission-desc">${m.desc}</div>
+      <div class="mission-crew">${m.status==='active'
+        ? '👥 '+m.assignedPeople.length+' kişi görevde'
+        : '⚡ Risk: '+Math.floor(m.risk*100)+'% · Min: '+m.minPeople+' kişi'
+      }</div>
+    </div>
+  `).join('');
+}
+
+// ==================== NIGHT RAID SYSTEM ====================
+function checkNightRaid() {
+  // Raid chance increases over days, reduced by walls and guards
+  const guards = STATE.people.filter(p => p.trait === 'ASKER' || p.trait === 'GÜVENLİK').length;
+  const wallDef = 30 + STATE.base.upgrades.walls * 15 + (STATE.activities.traps||0) * 5;
+  const raidChance = clamp((STATE.day * 3 + STATE.social.tensionLevel * 0.1) - wallDef * 0.5 - guards * 5, 5, 60) / 100;
+
+  if (Math.random() < raidChance) {
+    const strength = randInt(STATE.day * 2, STATE.day * 5 + 20);
+    STATE.nightRaid.pending = true;
+    STATE.nightRaid.raidStrength = strength;
+    document.getElementById('night-raid-btn').style.display = '';
+    addLog(`🌙 BASKINI TESPİT EDİLDİ! ${strength} güçlük seviyesinde düşman yaklaşıyor!`, 'danger');
+    showNotification('🌙 GECE BASKINI! Savunmaya geç!', true);
+    addSocialAlert(`🌙 Gece baskını geliyor! Savunma hazırlıklarını tamamla!`, 'raid', () => showNightRaidModal());
+  }
+}
+
+function showNightRaidModal() {
+  const strength = STATE.nightRaid.raidStrength;
+  const guards = STATE.people.filter(p => p.trait === 'ASKER' || p.trait === 'GÜVENLİK').length;
+  const wallLevel = STATE.base.upgrades.walls;
+  const traps = STATE.activities.traps || 0;
+  const defense = 30 + wallLevel * 15 + guards * 10 + traps * 5;
+
+  const defenseRatio = defense / Math.max(1, strength);
+  let outcome = defenseRatio > 1.2 ? 'ZAFER' : defenseRatio > 0.7 ? 'YARA ALACAKSINIZ' : 'YENILGI TEHLİKESİ';
+  let outcomeColor = defenseRatio > 1.2 ? 'var(--green)' : defenseRatio > 0.7 ? 'var(--amber)' : 'var(--red)';
+
+  const body = `
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">
+      Düşman kuvvetleri üsse yaklaşıyor. Savunma pozisyonunu değerlendir.
+    </div>
+    <div class="stat-row"><span class="stat-label">DÜŞMAN GÜCÜ</span><span class="stat-value" style="color:var(--red)">${strength}</span></div>
+    <div class="stat-row"><span class="stat-label">SAVUNMA GÜCÜ</span><span class="stat-value" style="color:var(--green)">${Math.floor(defense)}</span></div>
+    <div class="stat-row"><span class="stat-label">MUHAFIZlar</span><span class="stat-value">${guards} kişi</span></div>
+    <div class="stat-row"><span class="stat-label">DUVAR SEVİYE</span><span class="stat-value">Lv.${wallLevel}</span></div>
+    <div class="stat-row"><span class="stat-label">TUZAKLAR</span><span class="stat-value">${traps} adet</span></div>
+    <div style="margin:12px 0;font-family:'Oswald',sans-serif;font-size:16px;color:${outcomeColor};letter-spacing:2px;">
+      TAHMİN: ${outcome}
+    </div>
+    <div class="decision-grid">
+      <button class="decision-btn accept" onclick="resolveRaid('defend');closeModal()">
+        <span class="d-icon">🛡️</span>
+        SAVUN<br><span style="font-size:9px">Tüm kuvvetlerle savaş</span>
+      </button>
+      <button class="decision-btn quarantine" onclick="resolveRaid('sneak');closeModal()">
+        <span class="d-icon">🌑</span>
+        GİZLEN<br><span style="font-size:9px">Kaçınmaya çalış</span>
+      </button>
+      <button class="decision-btn steal" onclick="resolveRaid('negotiate');closeModal()">
+        <span class="d-icon">🤝</span>
+        PAZARLIK<br><span style="font-size:9px">Kaynak ver, barış al</span>
+      </button>
+      <button class="decision-btn execute" onclick="resolveRaid('counterattack');closeModal()">
+        <span class="d-icon">⚔️</span>
+        KARŞI SALDIRI<br><span style="font-size:9px">Yüksek risk, yüksek kazanç</span>
+      </button>
+    </div>
+  `;
+
+  document.getElementById('modal-title').textContent = '🌙 GECE BASKINI';
+  document.getElementById('modal-subtitle').textContent = `DÜŞMAN GÜCÜ: ${strength} · SAVUNMAN: ${Math.floor(defense)}`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function resolveRaid(strategy) {
+  const strength = STATE.nightRaid.raidStrength;
+  const guards = STATE.people.filter(p => p.trait === 'ASKER' || p.trait === 'GÜVENLİK').length;
+  const defense = 30 + STATE.base.upgrades.walls * 15 + guards * 10 + (STATE.activities.traps||0) * 5;
+  const roll = Math.random();
+
+  let msg = '';
+  let success = false;
+
+  if (strategy === 'defend') {
+    success = defense >= strength * 0.8 || roll < 0.5;
+    if (success) {
+      msg = `🛡️ SAVUNMA BAŞARILI! Düşman geri çekildi.`;
+      STATE.resources.caps += randInt(5, 15);
+      STATE.social.morale = clamp(STATE.social.morale + 15, 0, 100);
+    } else {
+      msg = `💥 SAVUNMA YIKILDI! Üse zarar verildi.`;
+      STATE.resources.food = Math.max(0, STATE.resources.food - randInt(10, 25));
+      STATE.resources.parts = Math.max(0, STATE.resources.parts - randInt(5, 15));
+      STATE.people.forEach(p => { if (Math.random() < 0.3) p.health = clamp(p.health - randInt(15,35), 0, 100); });
+      // Possible death
+      if (STATE.people.length > 0 && Math.random() < 0.4) {
+        const casualty = randFrom(STATE.people);
+        STATE.people = STATE.people.filter(p => p.id !== casualty.id);
+        addLog(`💀 ${casualty.name} baskında hayatını kaybetti.`, 'danger');
+      }
+    }
+  } else if (strategy === 'sneak') {
+    success = roll < 0.6;
+    msg = success ? '🌑 Gizlenme başarılı, düşman geçip gitti.' : '💥 Tespitit edildik! Kısmi hasar.';
+    if (!success) { STATE.resources.food = Math.max(0, STATE.resources.food - randInt(5,12)); }
+  } else if (strategy === 'negotiate') {
+    const cost = randInt(8, 20);
+    STATE.resources.food = Math.max(0, STATE.resources.food - cost);
+    STATE.resources.caps = Math.max(0, STATE.resources.caps - randInt(5, 10));
+    msg = `🤝 Pazarlık yapıldı. ${cost} yiyecek verildi, düşman çekildi.`;
+    success = true;
+  } else if (strategy === 'counterattack') {
+    success = guards >= 2 && (defense > strength || roll < 0.4);
+    if (success) {
+      msg = `⚔️ KARŞI SALDIRI BAŞARILI! Düşman bozguna uğratıldı!`;
+      STATE.resources.caps += randInt(15, 30);
+      STATE.resources.parts += randInt(5, 12);
+      STATE.social.morale = clamp(STATE.social.morale + 25, 0, 100);
+    } else {
+      msg = `⚔️ Karşı saldırı başarısız! Ağır kayıp verildi!`;
+      if (STATE.people.length > 0) {
+        const casualty = randFrom(STATE.people.filter(p => p.trait==='ASKER'||p.trait==='GÜVENLİK') || STATE.people);
+        if (casualty) {
+          STATE.people = STATE.people.filter(p => p.id !== casualty.id);
+          addLog(`💀 ${casualty.name} karşı saldırıda şehit düştü.`, 'danger');
+        }
+      }
+      STATE.resources.food = Math.max(0, STATE.resources.food - randInt(15, 30));
+    }
+  }
+
+  addLog(msg, success ? 'success' : 'danger');
+  showNotification(msg.substring(0, 50), !success);
+
+  // Consume traps
+  if (STATE.activities.traps > 0 && strategy === 'defend') {
+    STATE.activities.traps = Math.max(0, STATE.activities.traps - randInt(0,2));
+  }
+
+  STATE.nightRaid.pending = false;
+  STATE.nightRaid.raidStrength = 0;
+  document.getElementById('night-raid-btn').style.display = 'none';
+  updateUI();
+}
+
+// ==================== BASE PEOPLE & BUILDING RENDERING ====================
+
+function getPersonActivityText(p) {
+  const building = getAssignedBuilding(p.id);
+  if (building) {
+    const b = BUILDING_LABELS[building];
+    const actTexts = {
+      clinic: [`klinikte hasta bakıyor, yorgun gözüküyor.`, `ilaçları düzenliyor ve kayıtları tutuyor.`, `bir hastanın yara bandını değiştiriyor.`],
+      workshop: [`atölyede bir şeyler tamir ediyor.`, `motor parçalarına bakıyor, elleri yağlı.`, `yeni bir alet üzerine çalışıyor.`],
+      farm: [`tarlada toprak eşiyor.`, `bitkileri suluyor.`, `hasat için alan hazırlıyor.`],
+      security: [`emniyet binasında sigara tüttürerek nöbet tutuyor.`, `karakolda devriye geziyor, tetikte.`, `silahını temizliyor.`],
+      management: [`yönetim odasında raporları inceliyor.`, `lojistik planlıyor, haritalar üzerinde çalışıyor.`, `koordinasyon toplantısı yönetiyor.`],
+    };
+    return `<span style="color:var(--green-dim)">[${b.icon}${b.name}]</span> ${randFrom(actTexts[building] || ['görevde.'])}`;
+  }
+  // Free people doing random activities
+  const freeActs = [
+    `baraka köşesinde mışıl mışıl uyuyor.`,
+    `yemek pişiriyor, ortalığa güzel koku yayıyor.`,
+    `üssün zeminini süpürüyor.`,
+    `duvara yaslanmış, düşüncelere dalıyor.`,
+    `eski bir dergi karıştırıyor.`,
+    p.spouseId ? `sevgilisiyle sessizce konuşuyor.` : `yalnız bir köşede oturuyor.`,
+    p.childrenIds && p.childrenIds.length > 0 ? `çocuğuyla top oynuyor.` : `radyo frekansı arıyor.`,
+    `üsse yeni birinin gelmesini diliyor.`,
+  ];
+  return randFrom(freeActs);
+}
+
+// Seed random activity text per person per day so it doesn't flicker
+const _personActivities = {};
+function getStableActivity(p) {
+  const key = `${p.id}_${STATE.day}`;
+  if (!_personActivities[key]) {
+    _personActivities[key] = getPersonActivityText(p);
+  }
+  return _personActivities[key];
+}
+
+function renderBasePeopleList() {
+  const el = document.getElementById('base-people-list');
+  if (!el) return;
+
+  let html = '';
+
+  // LIVING (barracks)
+  if (STATE.people.length > 0) {
+    html += `<div style="font-size:9px;color:var(--text-dim);letter-spacing:2px;margin:4px 0 6px;padding-left:2px;">🏠 YAŞAYANLAR (${STATE.people.length})</div>`;
+    html += STATE.people.map(p => {
+      const building = getAssignedBuilding(p.id);
+      const locLabel = building ? BUILDING_LABELS[building].icon + BUILDING_LABELS[building].name : '🏠 Baraka';
+      const moodColor = (p.happiness||50) >= 60 ? 'var(--green)' : (p.happiness||50) >= 30 ? 'var(--amber)' : 'var(--red)';
+      return `
+        <div class="barracks-person" onclick="showPersonDetail('${p.id}')">
+          <div class="barracks-person-row1">
+            <span style="font-size:16px">${p.emoji}</span>
+            <span class="barracks-person-name">${p.name}</span>
+            <span class="barracks-person-loc">${locLabel}</span>
+            ${p.infected ? '<span class="chip red" style="font-size:8px">🦠</span>' : ''}
+            ${p.spouseId ? '<span style="font-size:10px">💍</span>' : ''}
+          </div>
+          <div class="barracks-person-activity">${getStableActivity(p)}</div>
+          <div class="barracks-person-mood" style="color:${moodColor}">↳ ${moodPhrase(p)}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // QUARANTINED
+  if (STATE.quarantined.length > 0) {
+    html += `<div style="font-size:9px;color:var(--blue);letter-spacing:2px;margin:8px 0 6px;padding-left:2px;">🔒 KARANTİNA (${STATE.quarantined.length})</div>`;
+    html += STATE.quarantined.map(p => `
+      <div class="quarantine-person">
+        <span style="font-size:14px">${p.emoji}</span>
+        <span class="pname">${p.name}</span>
+        <span style="font-size:9px;color:var(--text-dim)">${p.trait} · ${p.daysInBase}g</span>
+        ${p.infected ? '<span class="chip red" style="font-size:8px">🦠 ENFEKTELİ</span>' : '<span style="font-size:9px;color:var(--green)">Temiz görünüyor</span>'}
+      </div>`).join('');
+  }
+
+  // IMPRISONED — with escape risk display
+  if (STATE.imprisoned.length > 0) {
+    html += `<div style="font-size:9px;color:var(--amber);letter-spacing:2px;margin:8px 0 6px;padding-left:2px;">⚠️ HAPİSHANE (${STATE.imprisoned.length})</div>`;
+    html += STATE.imprisoned.map(p => {
+      const escapeRisk = calcEscapeRisk(p);
+      const riskColor = escapeRisk >= 16 ? 'var(--red)' : escapeRisk >= 12 ? 'var(--amber)' : 'var(--green)';
+      const riskLabel = escapeRisk >= 16 ? 'YÜKSEK KAÇIŞ RİSKİ' : escapeRisk >= 12 ? 'ORTA RİSK' : 'Düşük risk';
+      return `
+        <div class="prison-person" onclick="showPersonDetail('${p.id}')">
+          <span style="font-size:14px">${p.emoji}</span>
+          <span class="pname">${p.name} <span style="color:var(--text-dim);font-size:9px">${p.trait}</span></span>
+          <span class="escape-risk" style="color:${riskColor};border-color:${riskColor}">⚠️ ${riskLabel}</span>
+        </div>`;
+    }).join('');
+  }
+
+  if (!html) {
+    html = `<div style="font-size:10px;color:var(--text-dim);padding:8px 0;">Üste kimse yok...</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderBuildingAssignments() {
+  const el = document.getElementById('building-assignments');
+  if (!el) return;
+
+  const buildings = [
+    { id: 'management', icon: '🏛️', name: 'YÖNETİM', skill: 'social', required: 1, skillLabel: socialLabel },
+    { id: 'gate', icon: '🚪', name: 'KAPI NÖBETİ', skill: 'combat', required: 0, skillLabel: combatLabel },
+    { id: 'security', icon: '🚔', name: 'EMNİYET', skill: 'combat', required: 1, skillLabel: combatLabel },
+    { id: 'clinic', icon: '🔬', name: 'KLİNİK', skill: 'medical', required: 0, skillLabel: medicalLabel },
+    { id: 'workshop', icon: '⚙️', name: 'ATÖLYE', skill: 'workshop', required: 0, skillLabel: workshopLabel },
+    { id: 'farm', icon: '🌾', name: 'ÇİFTLİK', skill: 'farming', required: 0, skillLabel: v => v>=60?'Çiftçi':v>=30?'Bahçıvan':'Acemi' },
+  ];
+
+  el.innerHTML = buildings.map(b => {
+    const assigned = (STATE.base.assignments[b.id] || [])
+      .map(id => STATE.people.find(p => String(p.id) === String(id))).filter(Boolean);
+    const isMet = assigned.length >= b.required;
+    const badgeClass = b.required > 0 ? (isMet ? 'ok' : 'warn') : '';
+    const badgeText = assigned.length > 0 ? `${assigned.length} atandı` : (b.required > 0 ? `⚠️ BOŞ` : '—');
+
+    // Building-specific action button
+    let actionBtn = '';
+    if (b.id === 'workshop' && assigned.length > 0) {
+      actionBtn = `<button onclick="event.stopPropagation();showWorkshopProjects()" style="width:100%;margin-top:4px;padding:4px;background:var(--bg);border:1px solid var(--border);color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;">⚙️ PROJELER</button>`;
+    }
+    if (b.id === 'farm' && assigned.length > 0) {
+      actionBtn = `<button onclick="event.stopPropagation();showFarmProjects()" style="width:100%;margin-top:4px;padding:4px;background:var(--bg);border:1px solid var(--border);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;">🌱 EKIM PLANLA</button>`;
+    }
+    if (b.id === 'security') {
+      const canTrain = assigned.some(p => p.skills.combat >= 60 && p.skills.social >= 60);
+      if (canTrain) {
+        actionBtn = `<button onclick="event.stopPropagation();showPoliceTraining()" style="width:100%;margin-top:4px;padding:4px;background:var(--bg);border:1px solid var(--border);color:var(--green-bright);font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;">🎓 EĞİTİM VER</button>`;
+      }
+    }
+
+    return `
+      <div class="building-card">
+        <div class="building-header" onclick="showAssignModal('${b.id}')">
+          <span class="building-icon">${b.icon}</span>
+          <span class="building-name">${b.name}</span>
+          <span class="building-badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="building-slots">
+          ${assigned.length === 0
+            ? `<div class="assignment-slot empty" onclick="showAssignModal('${b.id}')">+ Ata</div>`
+            : assigned.map(p => `
+              <div class="assignment-slot" onclick="showAssignModal('${b.id}')">
+                <span class="slot-emoji">${p.emoji}</span>
+                <span class="slot-name">${p.name}</span>
+                <span class="slot-score" style="color:${(p.skills[b.skill]||0)>=60?'var(--green)':'var(--amber)'}">${p.skills[b.skill]||0}</span>
+                <button class="unassign-btn" onclick="event.stopPropagation();unassignPerson('${p.id}');renderBuildingAssignments()">✕</button>
+              </div>`).join('')}
+          ${actionBtn}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ==================== BUILDING PROJECTS ====================
+function showWorkshopProjects() {
+  const projects = [
+    { id:'radio', name:'📻 Radyo Üret', cost:{parts:25}, desc:'Tamamlanınca kapıda yeni biri belirir', time:'2 gün' },
+    { id:'electric', name:'⚡ Eve Elektrik Bağla', cost:{parts:7}, desc:'Baraka morali artar (+15)', time:'1 gün' },
+    { id:'guitar', name:'🎸 Gitar Üret', cost:{parts:9}, desc:'Üs morali artar (+10)', time:'1 gün' },
+    { id:'ekg', name:'🩺 EKG Cihazı', cost:{parts:17}, desc:'İlaç üretimi artar (+5/gün)', time:'2 gün' },
+  ];
+
+  const active = STATE.workshopProject;
+  const body = `
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px;">
+      Atölyedeki kişi projeyi yürütür. Aynı anda sadece 1 proje aktif olabilir.
+    </div>
+    ${active ? `<div style="padding:8px;background:var(--amber-dim);border:1px solid var(--amber);font-size:10px;margin-bottom:10px;">
+      ⚙️ Aktif: <b>${active.name}</b> — ${active.daysLeft} gün kaldı
+    </div>` : ''}
+    ${projects.map(p => {
+      const canAfford = Object.entries(p.cost).every(([k,v]) => STATE.resources[k] >= v);
+      const costStr = Object.entries(p.cost).map(([k,v]) => `${v} ${k==='parts'?'🔧':k==='meds'?'💊':'🪙'}`).join(' ');
+      return `
+        <div style="padding:8px;background:var(--bg2);border:1px solid ${canAfford?'var(--border)':'var(--border)'};margin-bottom:6px;">
+          <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--text-bright);">${p.name}</div>
+          <div style="font-size:10px;color:var(--text-dim);margin:3px 0;">${p.desc}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <span style="font-size:9px;color:var(--amber);">${costStr} · ${p.time}</span>
+            <button onclick="startWorkshopProject('${p.id}');closeModal();"
+              style="padding:4px 10px;background:${canAfford?'var(--green-dim)':'var(--bg)'};border:1px solid ${canAfford?'var(--green)':'var(--border)'};color:${canAfford?'var(--green-bright)':'var(--text-dim)'};font-family:'Share Tech Mono',monospace;font-size:9px;cursor:${canAfford?'pointer':'not-allowed'};"
+              ${active||!canAfford?'disabled':''}>
+              ${active?'AKTIF VAR':canAfford?'BAŞLAT':'KAYNAK YOK'}
+            </button>
+          </div>
+        </div>`;
+    }).join('')}
+  `;
+  document.getElementById('modal-title').textContent = '⚙️ ATÖLYE PROJELERİ';
+  document.getElementById('modal-subtitle').textContent = `Parça: ${Math.floor(STATE.resources.parts)} mevcut`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function startWorkshopProject(projectId) {
+  const projects = {
+    radio:    { name:'Radyo', cost:{parts:25}, daysLeft:2, id:'radio' },
+    electric: { name:'Ev Elektrikleme', cost:{parts:7},  daysLeft:1, id:'electric' },
+    guitar:   { name:'Gitar', cost:{parts:9},  daysLeft:1, id:'guitar' },
+    ekg:      { name:'EKG Cihazı', cost:{parts:17}, daysLeft:2, id:'ekg' },
+  };
+  const p = projects[projectId];
+  if (!p) return;
+  Object.entries(p.cost).forEach(([k,v]) => { STATE.resources[k] -= v; });
+  STATE.workshopProject = { ...p };
+  addLog(`⚙️ Proje başladı: ${p.name}`, 'success');
+  showNotification(`⚙️ ${p.name} üretiliyor...`, false);
+  updateUI();
+}
+
+function processWorkshopProjects() {
+  if (!STATE.workshopProject) return;
+  STATE.workshopProject.daysLeft--;
+  if (STATE.workshopProject.daysLeft <= 0) {
+    const id = STATE.workshopProject.id;
+    addLog(`✅ Proje tamamlandı: ${STATE.workshopProject.name}!`, 'success');
+    showNotification(`✅ ${STATE.workshopProject.name} tamamlandı!`, false);
+    if (id === 'radio') { STATE.gate.timer = Math.min(STATE.gate.timer, 30); addLog('📻 Radyo sinyali! Biri kapıya geliyor...', 'success'); }
+    if (id === 'electric') { STATE.people.forEach(p => { p.happiness = clamp((p.happiness||50)+15,0,100); }); }
+    if (id === 'guitar') { STATE.social.morale = clamp(STATE.social.morale+10,0,100); }
+    if (id === 'ekg') { STATE._ekgBonus = (STATE._ekgBonus||0) + 5; addLog('🩺 EKG aktif: +5 ilaç/gün bonusu.','success'); }
+    STATE.workshopProject = null;
+  }
+}
+
+function showFarmProjects() {
+  const crops = [
+    { id:'tomato', name:'🍅 Domates Ek', cost:{parts:3}, desc:'+6 yiyecek/gün (3 gün)', days:3 },
+    { id:'potato', name:'🥔 Patates Ek', cost:{parts:2}, desc:'+4 yiyecek/gün (2 gün)', days:2 },
+    { id:'corn', name:'🌽 Mısır Ek', cost:{parts:4}, desc:'+8 yiyecek/gün (4 gün)', days:4 },
+    { id:'herb', name:'🌿 Şifalı Ot Ek', cost:{parts:3,meds:2}, desc:'+3 ilaç/gün (3 gün)', days:3 },
+  ];
+  const body = `
+    ${crops.map(c => {
+      const canAfford = Object.entries(c.cost).every(([k,v]) => STATE.resources[k] >= v);
+      const costStr = Object.entries(c.cost).map(([k,v]) => `${v}${k==='parts'?'🔧':k==='meds'?'💊':'🪙'}`).join(' ');
+      return `
+        <div style="padding:8px;background:var(--bg2);border:1px solid var(--border);margin-bottom:6px;">
+          <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--text-bright);">${c.name}</div>
+          <div style="font-size:10px;color:var(--text-dim);margin:3px 0;">${c.desc}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <span style="font-size:9px;color:var(--amber);">${costStr}</span>
+            <button onclick="startFarmCrop('${c.id}');closeModal();"
+              style="padding:4px 10px;background:${canAfford?'var(--green-dim)':'var(--bg)'};border:1px solid ${canAfford?'var(--green)':'var(--border)'};color:${canAfford?'var(--green-bright)':'var(--text-dim)'};font-family:'Share Tech Mono',monospace;font-size:9px;cursor:${canAfford?'pointer':'default'};"
+              ${!canAfford?'disabled':''}>
+              ${canAfford?'EK':'KAYNAK YOK'}
+            </button>
+          </div>
+        </div>`;
+    }).join('')}
+  `;
+  document.getElementById('modal-title').textContent = '🌾 EKİM PLANLAMA';
+  document.getElementById('modal-subtitle').textContent = `Mevcut: ${Math.floor(STATE.resources.food)} yiyecek`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function startFarmCrop(cropId) {
+  const crops = {
+    tomato: { cost:{parts:3}, bonus:{food:6}, days:3, name:'Domates' },
+    potato: { cost:{parts:2}, bonus:{food:4}, days:2, name:'Patates' },
+    corn:   { cost:{parts:4}, bonus:{food:8}, days:4, name:'Mısır' },
+    herb:   { cost:{parts:3,meds:2}, bonus:{meds:3}, days:3, name:'Şifalı Ot' },
+  };
+  const c = crops[cropId];
+  if (!c) return;
+  Object.entries(c.cost).forEach(([k,v]) => { STATE.resources[k] -= v; });
+  STATE.farmCrops = STATE.farmCrops || [];
+  STATE.farmCrops.push({ ...c, id:cropId, daysLeft:c.days });
+  addLog(`🌱 ${c.name} ekildi! ${c.days} günde hasat edilecek.`, 'success');
+  updateUI();
+}
+
+function processFarmCrops() {
+  if (!STATE.farmCrops) return;
+  STATE.farmCrops.forEach(c => {
+    // Apply daily bonus
+    Object.entries(c.bonus).forEach(([k,v]) => { STATE.resources[k] = (STATE.resources[k]||0) + v; });
+    c.daysLeft--;
+    if (c.daysLeft <= 0) addLog(`✅ ${c.name} hasatı tamamlandı.`, 'success');
+  });
+  STATE.farmCrops = STATE.farmCrops.filter(c => c.daysLeft > 0);
+}
+
+// ==================== POLICE TRAINING ====================
+function showPoliceTraining() {
+  const secWorkers = (STATE.base.assignments.security || [])
+    .map(id => STATE.people.find(p => String(p.id) === String(id))).filter(Boolean);
+  const instructor = secWorkers.find(p => p.skills.combat >= 60 && p.skills.social >= 60);
+  if (!instructor) { showNotification('Uygun eğitmen yok!', true); return; }
+
+  // Trainable: free (no assignment), not imprisoned, not child, hasn't maxed training
+  const trainable = STATE.people.filter(p =>
+    !getAssignedBuilding(p.id) &&
+    !p.isChild &&
+    !p.onMission &&
+    (p.trainingCount || 0) < 3 &&
+    p.id !== instructor.id
+  );
+
+  const body = `
+    <div style="padding:8px;background:var(--bg2);border:1px solid var(--border);margin-bottom:12px;font-size:10px;">
+      <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--green-bright);margin-bottom:4px;">
+        ${instructor.emoji} ${instructor.name} — EĞİTMEN
+      </div>
+      <div style="color:var(--text-dim);">Savaş: <b style="color:var(--green)">${instructor.skills.combat}</b> · Sosyal: <b style="color:var(--green)">${instructor.skills.social}</b></div>
+      <div style="font-size:9px;color:var(--text-dim);margin-top:4px;">Eğitim süresi: 30 dakika · Max eğitim/kişi: 3 kez</div>
+    </div>
+    <div style="font-size:9px;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;">EĞİTİLECEK KİŞİ SEÇ:</div>
+    ${trainable.length === 0
+      ? '<div style="font-size:10px;color:var(--text-dim);">Eğitilebilecek uygun kişi yok. (Tüm kişiler atanmış, görevde veya max eğitim almış)</div>'
+      : trainable.map(p => {
+          const gain = calcTrainingGain(instructor, p);
+          return `
+            <div class="assignment-slot" onclick="startPoliceTraining('${instructor.id}','${p.id}');closeModal();">
+              <span class="slot-emoji">${p.emoji}</span>
+              <span class="slot-name">${p.name} <span style="font-size:9px;color:var(--text-dim)">${p.trait}</span></span>
+              <span style="font-size:9px;color:var(--text-dim)">Savaş: ${p.skills.combat}</span>
+              <span style="font-size:9px;color:var(--green)">+${gain} beklenen</span>
+              <span style="font-size:8px;color:var(--text-dim)">(${p.trainingCount||0}/3)</span>
+            </div>`;
+        }).join('')}
+  `;
+  document.getElementById('modal-title').textContent = '🎓 POLİS EĞİTİMİ';
+  document.getElementById('modal-subtitle').textContent = `${instructor.name} eğitim veriyor`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function calcTrainingGain(instructor, trainee) {
+  // Max gain = 10 (at 100/100 instructor). Formula: (combat+social)/20
+  const instructorPower = (instructor.skills.combat + instructor.skills.social) / 200; // 0-1
+  const maxGain = 10;
+  return Math.max(1, Math.round(instructorPower * maxGain));
+}
+
+function startPoliceTraining(instructorId, traineeId) {
+  const instructor = STATE.people.find(p => String(p.id) === String(instructorId));
+  const trainee = STATE.people.find(p => String(p.id) === String(traineeId));
+  if (!instructor || !trainee) return;
+
+  const gain = calcTrainingGain(instructor, trainee);
+
+  // Start a timed training — 30 real seconds (for testing; in production could be 30 min)
+  STATE._trainingSession = {
+    instructorId, traineeId,
+    gain,
+    startTime: Date.now(),
+    durationMs: 30 * 1000, // 30 seconds real time (test mode)
+    instructorName: instructor.name,
+    traineeName: trainee.name,
+  };
+  trainee.onTraining = true;
+
+  addLog(`🎓 ${trainee.name} eğitime başladı (eğitmen: ${instructor.name}). 30 saniye...`, 'success');
+  showNotification(`🎓 Eğitim başladı: ${trainee.name}`, false);
+  updateUI();
+}
+
+function checkTrainingCompletion() {
+  if (!STATE._trainingSession) return;
+  const s = STATE._trainingSession;
+  const elapsed = Date.now() - s.startTime;
+  if (elapsed >= s.durationMs) {
+    const trainee = STATE.people.find(p => String(p.id) === String(s.traineeId));
+    if (trainee) {
+      trainee.skills.combat = clamp(trainee.skills.combat + s.gain, 0, 100);
+      trainee.trainingCount = (trainee.trainingCount || 0) + 1;
+      trainee.onTraining = false;
+      addLog(`✅ Eğitim bitti! ${trainee.name} savaş puanı +${s.gain} → ${trainee.skills.combat}`, 'success');
+      showNotification(`✅ ${trainee.name} eğitimini tamamladı! +${s.gain} savaş`, false);
+    }
+    STATE._trainingSession = null;
+    renderBuildingAssignments();
+    renderBasePeopleList();
+  }
+}
+
+
+
+function unassignPerson(personId) {
+  assignPersonToBuilding(personId, null);
+  renderBuildingAssignments();
+}
+
+function showAssignModal(buildingId) {
+  const b = BUILDING_LABELS[buildingId];
+  const buildingDef = {
+    management: { icon:'🏛️', name:'YÖNETİM BİNASI', skill:'social', skillLabel:socialLabel, desc:'Yönetim binası her zaman en az 1 kişi gerektirir. Sosyal becerisi yüksek kişiler daha verimli yönetim sağlar.' },
+    gate: { icon:'🚪', name:'KAPI NÖBETİ', skill:'combat', skillLabel:combatLabel, desc:'Kapı nöbetçileri gelen survivorları karşılar. Savaş puanı yüksek kişiler tehlikelileri daha iyi değerlendirir. Mühendislik puanı da önemlidir — kapı sistemlerini yönetirler. Enfekte birinin eşyasını alırlarsa sağlıkları etkilenir.' },
+    security: { icon:'🚔', name:'EMNİYET BİNASI', skill:'combat', skillLabel:combatLabel, desc:'Emniyet binasındaki muhafızların savaş puanı mahkumların kaçma riskini belirler. Yüksek savaşlı muhafız şart.' },
+    clinic: { icon:'🔬', name:'KLİNİK', skill:'medical', skillLabel:medicalLabel, desc:'Kliniğe atanan kişinin tıp puanı ne kadar yüksekse o kadar çok hastayı tedavi eder. Kapasitesi aşılırsa hastalık yayılır.' },
+    workshop: { icon:'⚙️', name:'ATÖLYE', skill:'workshop', skillLabel:workshopLabel, desc:'Atölyede çalışan kişi her gün parça üretir. Beceri skoru üretim hızını belirler. Moralinin düşük olması verimliliği ciddi etkiler.' },
+    farm: { icon:'🌾', name:'ÇİFTLİK', skill:'farming', skillLabel:v=>v>=60?'Çiftçi':v>=30?'Bahçıvan':'Acemi', desc:'Çiftlikte çalışan kişi yiyecek üretir. Moral düşüklüğü tarım verimini düşürür.' },
+  }[buildingId];
+
+  if (!buildingDef) return;
+
+  const freePeople = STATE.people.filter(p => !p.isChild && !p.onMission);
+  const skillKey = buildingDef.skill;
+
+  const body = `
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px;line-height:1.7;">${buildingDef.desc}</div>
+    <div style="font-size:9px;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;">KİŞİ SEÇ (tıkla → ata):</div>
+    ${freePeople.length === 0
+      ? '<div style="font-size:10px;color:var(--text-dim);">Uygun kişi yok.</div>'
+      : freePeople.sort((a,b) => (b.skills[skillKey]||0)-(a.skills[skillKey]||0)).map(p => {
+          const assigned = getAssignedBuilding(p.id);
+          const skillVal = p.skills[skillKey] || 0;
+          const skillColor = skillVal >= 65 ? 'var(--green)' : skillVal >= 35 ? 'var(--amber)' : 'var(--red)';
+          const isCurrentlyAssigned = String(STATE.base.assignments[buildingId]||[]).includes(String(p.id)) || (STATE.base.assignments[buildingId]||[]).map(String).includes(String(p.id));
+          return `
+            <div class="assignment-slot" onclick="assignPersonToBuilding('${p.id}','${buildingId}');closeModal();updateUI();"
+                 style="${isCurrentlyAssigned?'border-color:var(--green-bright);background:rgba(122,179,42,0.08)':''}">
+              <span class="slot-emoji">${p.emoji}</span>
+              <span class="slot-name">${p.name} <span style="font-size:9px;color:var(--text-dim)">${p.trait}</span></span>
+              <span style="font-size:9px;color:${skillColor}">${buildingDef.skillLabel(skillVal)}</span>
+              <span class="slot-score" style="color:${skillColor}">${skillVal}</span>
+              ${assigned ? `<span style="font-size:9px;color:var(--amber)">[${BUILDING_LABELS[assigned]?.name||assigned}]</span>` : ''}
+              ${isCurrentlyAssigned ? '<span style="color:var(--green);font-size:10px">✓ ATANMIŞ</span>' : ''}
+            </div>`;
+        }).join('')}
+    <div style="margin-top:10px;">
+      <button onclick="unassignAll('${buildingId}');closeModal();updateUI();"
+              style="width:100%;padding:8px;background:var(--red-dim);border:1px solid var(--red);color:var(--red);font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;letter-spacing:1px;">
+        ✕ TÜM ATAMALARI KALDIR
+      </button>
+    </div>
+  `;
+
+  document.getElementById('modal-title').textContent = buildingDef.icon + ' ' + buildingDef.name;
+  document.getElementById('modal-subtitle').textContent = `Beceri: ${skillKey.toUpperCase()} · Atama Yönetimi`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function unassignAll(buildingId) {
+  STATE.base.assignments[buildingId] = [];
+}
+
+function showPersonDetail(personId) {
+  // Find person in any group
+  let p = STATE.people.find(x => String(x.id) === String(personId));
+  const inBase = !!p;
+  if (!p) p = STATE.quarantined.find(x => String(x.id) === String(personId));
+  const inQuarantine = !inBase && !!p;
+  if (!p) return;
+
+  const building = getAssignedBuilding(p.id);
+  const partner = p.spouseId ? getPersonById(p.spouseId) : p.partnerId ? getPersonById(p.partnerId) : null;
+  const children = (p.childrenIds||[]).map(id => getPersonById(id)).filter(Boolean);
+
+  // Infection progression display
+  let infectionWarning = '';
+  if (p.infected) {
+    const daysLeft = 2 - (p.infectedDays || 0);
+    infectionWarning = `
+      <div style="padding:8px;background:rgba(196,58,42,0.15);border:1px solid var(--red);margin-bottom:10px;font-size:10px;">
+        <div style="color:var(--red);font-family:'Oswald',sans-serif;font-size:13px;margin-bottom:4px;">🦠 ENFEKSİYON - ÇÖZÜM YOK</div>
+        <div style="color:var(--text-dim);">Bu kişi enfekte. Klinik tedavi edemez. ${daysLeft <= 0 ? '<b style="color:var(--red)">BUGÜN DÖNÜŞÜYOR!</b>' : `~${daysLeft} gün içinde dönüşecek.`}</div>
+        <div style="color:var(--text-dim);margin-top:4px;font-size:9px;">Başkalarına bulaşabilir. Acil karar gerekiyor.</div>
+      </div>`;
+  }
+
+  // Infected person in base: show emergency actions
+  const showEmergencyActions = p.infected && inBase;
+
+  const body = `
+    <div style="display:flex;gap:12px;margin-bottom:12px;align-items:flex-start;">
+      <div style="font-size:48px;background:var(--bg2);border:1px solid ${p.infected?'var(--red)':p.suspicious?'var(--amber)':'var(--border)'};padding:8px;flex-shrink:0;">${p.emoji}</div>
+      <div style="flex:1;">
+        <div style="font-family:'Oswald',sans-serif;font-size:18px;color:var(--text-bright);">${p.name} <span style="font-size:12px;color:var(--text-dim)">${p.male?'♂':'♀'} ${p.age}y</span></div>
+        <div style="font-size:11px;color:var(--amber);margin-top:2px;">${p.trait} · <span style="color:var(--text-dim)">${p.personality}</span></div>
+        <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
+          ${p.infected?'<span class="chip red">🦠 ENFEKTELİ</span>':''}
+          ${p.suspicious?'<span class="chip amber">👁 ŞÜPHELİ</span>':''}
+          ${p.spouseId?'<span class="chip" style="border-color:#e05080;color:#e05080">💍 EVLİ</span>':''}
+          ${children.length>0?`<span class="chip blue">👶 ${children.length} çocuk</span>`:''}
+          ${building?`<span class="chip green">${BUILDING_LABELS[building].icon} ${BUILDING_LABELS[building].name}</span>`:'<span class="chip" style="border-color:var(--border);color:var(--text-dim)">🏠 Serbest</span>'}
+          ${(p.trainingCount||0)>0?`<span class="chip" style="border-color:var(--green-dim);color:var(--green-dim)">🎓 ${p.trainingCount}/3</span>`:''}
+        </div>
+      </div>
+    </div>
+
+    ${infectionWarning}
+
+    ${skillBar('SAĞLIK', p.health, healthLabel, p.health>=75?'var(--green)':p.health>=40?'var(--amber)':'var(--red)')}
+    ${skillBar('MORALİ', p.happiness||50, v=>v>=75?'Neşeli':v>=55?'İyi':v>=35?'Karamsar':v>=15?'Çökmüş':'Patlama noktasında', (p.happiness||50)>=50?'var(--green)':(p.happiness||50)>=25?'var(--amber)':'var(--red)')}
+    ${skillBar('SAVAŞ', p.skills.combat, combatLabel)}
+    ${skillBar('TIP', p.skills.medical, medicalLabel)}
+    ${skillBar('ATÖLYE', p.skills.workshop, workshopLabel)}
+    ${skillBar('TARIM', p.skills.farming, v=>v>=60?'Çiftçi':v>=30?'Bahçıvan':'Acemi')}
+    ${skillBar('SOSYAL', p.skills.social, socialLabel)}
+
+    ${partner ? `<div class="stat-row"><span class="stat-label">PARTNER</span><span class="stat-value">${partner.emoji} ${partner.name}</span></div>` : ''}
+    ${children.length>0?`<div class="stat-row"><span class="stat-label">ÇOCUKLAR</span><span class="stat-value">${children.map(c=>c.emoji+c.name).join(', ')}</span></div>`:''}
+
+    ${showEmergencyActions ? `
+      <div class="section-divider" style="color:var(--red);">⚠️ ACİL AKSİYON</div>
+      <div class="decision-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <button class="decision-btn quarantine" onclick="movePersonToQuarantine('${p.id}');closeModal();">
+          <span class="d-icon">🔒</span>KARANTİNA<span style="font-size:8px">Izole et</span>
+        </button>
+        <button class="decision-btn prison" onclick="movePersonToPrison('${p.id}');closeModal();">
+          <span class="d-icon">⚠️</span>HAPSE AT<span style="font-size:8px">Kilitle</span>
+        </button>
+        <button class="decision-btn execute" onclick="executeBasePerson('${p.id}');closeModal();">
+          <span class="d-icon">💀</span>ÖLDÜR<span style="font-size:8px">Dönüşümü engelle</span>
+        </button>
+      </div>
+    ` : `
+      <div class="section-divider">ATAMA DEĞİŞTİR</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+        ${Object.entries(BUILDING_LABELS).map(([bid, bl]) => `
+          <button onclick="assignPersonToBuilding('${p.id}','${bid}');closeModal();renderBuildingAssignments();renderBasePeopleList();"
+                  style="padding:6px;background:${building===bid?'var(--green-dim)':'var(--bg2)'};border:1px solid ${building===bid?'var(--green)':'var(--border)'};color:${building===bid?'var(--green-bright)':'var(--text)'};font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;">
+            ${bl.icon} ${bl.name} ${building===bid?'✓':''}
+          </button>`).join('')}
+        <button onclick="assignPersonToBuilding('${p.id}',null);closeModal();renderBuildingAssignments();renderBasePeopleList();"
+                style="padding:6px;background:var(--bg2);border:1px solid var(--border);color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;">
+          🏠 Serbest
+        </button>
+      </div>
+    `}
+  `;
+
+  document.getElementById('modal-title').textContent = p.name.toUpperCase();
+  document.getElementById('modal-subtitle').textContent = `${p.trait} · ${p.personality} · Gün ${p.daysInBase||0}`;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function movePersonToQuarantine(personId) {
+  const idx = STATE.people.findIndex(p => String(p.id) === String(personId));
+  if (idx === -1) return;
+  const p = STATE.people.splice(idx, 1)[0];
+  p.location = 'quarantine';
+  STATE.quarantined.push(p);
+  assignPersonToBuilding(p.id, null);
+  addLog(`🔒 ${p.name} karantinaya alındı (enfekte).`, 'warning');
+  showNotification(`🔒 ${p.name} karantinada`, false);
+  renderBasePeopleList(); updateUI();
+}
+
+function movePersonToPrison(personId) {
+  const idx = STATE.people.findIndex(p => String(p.id) === String(personId));
+  if (idx === -1) return;
+  const p = STATE.people.splice(idx, 1)[0];
+  p.location = 'prison';
+  STATE.imprisoned.push(p);
+  assignPersonToBuilding(p.id, null);
+  addLog(`⚠️ ${p.name} hücreye konuldu (enfekte).`, 'warning');
+  showNotification(`⚠️ ${p.name} hücrede`, false);
+  renderBasePeopleList(); updateUI();
+}
+
+function executeBasePerson(personId) {
+  const idx = STATE.people.findIndex(p => String(p.id) === String(personId));
+  if (idx === -1) return;
+  const p = STATE.people.splice(idx, 1)[0];
+  assignPersonToBuilding(p.id, null);
+  STATE.total_executed++;
+  // Morale hit but prevents spread
+  STATE.social.morale = clamp(STATE.social.morale - 8, 0, 100);
+  // Grief for spouse
+  if (p.spouseId) {
+    const spouse = getPersonById(p.spouseId);
+    if (spouse) { spouse.happiness = clamp((spouse.happiness||50) - 30, 0, 100); }
+  }
+  addLog(`💀 ${p.name} öldürüldü. Dönüşüm engellendi. Moral düştü.`, 'danger');
+  showNotification(`💀 ${p.name} öldürüldü`, true);
+  renderBasePeopleList(); updateUI();
+}
+
+
+
+// ==================== PRISON ESCAPE SYSTEM ====================
+function calcEscapeRisk(prisoner) {
+  // Base roll needed: 20 to escape (1-20 dice)
+  let modifier = 0;
+
+  // Combat bonus
+  if (prisoner.skills.combat >= 90) modifier += 3;
+  else if (prisoner.skills.combat >= 80) modifier += 2;
+  else if (prisoner.skills.combat >= 60) modifier += 1;
+
+  // Guard disadvantage
+  const guards = STATE.base.assignments.security
+    .map(id => STATE.people.find(p => String(p.id) === String(id)))
+    .filter(Boolean);
+  const guardAvgCombat = guards.length > 0
+    ? guards.reduce((s, g) => s + g.skills.combat, 0) / guards.length : 0;
+
+  if (guardAvgCombat > prisoner.skills.combat) modifier -= 2;
+
+  // Outnumbered guards
+  if (guards.length < STATE.imprisoned.length) modifier += 3;
+
+  return 20 - modifier; // number needed to roll or above to escape
+}
+
+function processPrisonEscapes() {
+  const escapeResults = [];
+
+  STATE.imprisoned.forEach(prisoner => {
+    const needed = calcEscapeRisk(prisoner);
+    const roll = randInt(1, 20);
+    if (roll >= needed) {
+      escapeResults.push({ prisoner, roll });
+    }
+  });
+
+  if (escapeResults.length > 0) {
+    // First successful escape
+    const first = escapeResults[0];
+    doEscape(first.prisoner);
+
+    // Cascade: remaining prisoners get +1
+    if (escapeResults.length > 1) {
+      escapeResults.slice(1).forEach(r => {
+        const needed = calcEscapeRisk(r.prisoner);
+        if (r.roll + 1 >= needed) doEscape(r.prisoner);
+      });
+    }
+  }
+}
+
+function doEscape(prisoner) {
+  STATE.imprisoned = STATE.imprisoned.filter(p => p.id !== prisoner.id);
+  prisoner.location = 'barracks';
+  prisoner.suspicious = true;
+  prisoner.danger = 90;
+  prisoner.personality = 'SALDIRGAN';
+
+  if (Math.random() < 0.5) {
+    // Escaped into the wild
+    addLog(`🚨 ${prisoner.name} hapisten KAÇTI! Üste saldırı gerçekleşti!`, 'danger');
+    STATE.people.forEach(p => { if (Math.random() < 0.25) p.health = clamp(p.health - randInt(5,20), 0, 100); });
+    STATE.resources.food = Math.max(0, STATE.resources.food - randInt(3, 10));
+    showNotification(`🚨 KAÇIŞ! ${prisoner.name} hapisten kaçtı!`, true);
+    addSocialAlert(`🚨 ${prisoner.name} hapisten kaçtı! Emniyet açığı var!`, 'escape', null);
+  } else {
+    // Escapes and hides in base — becomes a hidden threat
+    STATE.people.push(prisoner);
+    addLog(`🚨 ${prisoner.name} hapisten kaçıp üste saklandı! İzleyin!`, 'danger');
+    showNotification(`🚨 ${prisoner.name} üste gizleniyor!`, true);
+  }
+}
+
+// ==================== INFECTION PROGRESSION (Walking Dead) ====================
+function processInfectionProgression() {
+  const allPeople = [...STATE.people, ...STATE.quarantined];
+  const toKill = [];
+
+  allPeople.forEach(p => {
+    if (!p.infected) return;
+    p.infectedDays = (p.infectedDays || 0) + 1;
+
+    // Health deteriorates rapidly
+    p.health = clamp(p.health - randInt(15, 30), 0, 100);
+    p.happiness = clamp((p.happiness||50) - 20, 0, 100);
+
+    if (p.infectedDays >= 2 || p.health <= 0) {
+      toKill.push(p.id);
+      addLog(`☠️ ${p.name} dönüştü ve öldürüldü! Üs güvenliği tehdit altında.`, 'danger');
+      showNotification(`☠️ ${p.name} DÖNÜŞTÜ!`, true);
+
+      // Spread to nearby people with low health (in same location)
+      if (!p.location || p.location === 'barracks') {
+        STATE.people.filter(x => x.id !== p.id && !x.infected && x.health < 50 && Math.random() < 0.3).forEach(x => {
+          x.infectionPending = true;
+          addLog(`🦠 ${x.name}'a bulaşma riski var!`, 'warning');
+        });
+      }
+
+      // Grief for spouse
+      if (p.spouseId) {
+        const spouse = getPersonById(p.spouseId);
+        if (spouse) { spouse.happiness = clamp((spouse.happiness||50) - 40, 0, 100); }
+      }
+      STATE.social.morale = clamp(STATE.social.morale - 15, 0, 100);
+      STATE.social.tensionLevel = clamp(STATE.social.tensionLevel + 25, 0, 100);
+    }
+  });
+
+  if (toKill.length > 0) {
+    STATE.people = STATE.people.filter(p => !toKill.includes(p.id));
+    STATE.quarantined = STATE.quarantined.filter(p => !toKill.includes(p.id));
+    toKill.forEach(id => assignPersonToBuilding(id, null));
+  }
+}
+
+// Newcomers at gate should have lower health
+function generateSurvivorWithLowHealth() {
+  const s = generateSurvivor();
+  // Newcomers are tired and wounded — health 20-60
+  s.health = randInt(20, 60);
+  return s;
+}
+
+function init() {
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  // Spawn 5 starting survivors with MODEST stats
+  const startingTraits = ['DOKTOR','ASKER','MÜHENDİS','ÇIFTÇI','GÜVENLİK'];
+  startingTraits.forEach((trait) => {
+    const s = generateSurvivor();
+    s.trait = trait;
+    s.location = 'barracks';
+    s.daysInBase = randInt(1, 3);
+    s.happiness = randInt(35, 65);
+    // Modest skill values — not too high
+    s.skills.combat = randInt(20, 50);
+    s.skills.medical = randInt(15, 45);
+    s.skills.workshop = randInt(15, 45);
+    s.skills.farming = randInt(15, 45);
+    s.skills.social = randInt(20, 55);
+    // Small specialty boost
+    if (trait === 'DOKTOR') s.skills.medical = randInt(45, 65);
+    if (trait === 'MÜHENDİS') { s.skills.workshop = randInt(45, 65); s.skills.engineering = randInt(45,65); }
+    if (trait === 'ASKER' || trait === 'GÜVENLİK') s.skills.combat = randInt(40, 65);
+    if (trait === 'ÇIFTÇI') s.skills.farming = randInt(40, 60);
+    s.health = randInt(55, 85);
+    STATE.people.push(s);
+  });
+
+  // Auto-assign one person per key building
+  const byMedical = [...STATE.people].sort((a,b) => b.skills.medical - a.skills.medical);
+  const byCombat  = [...STATE.people].sort((a,b) => b.skills.combat  - a.skills.combat);
+  const bySocial  = [...STATE.people].sort((a,b) => b.skills.social  - a.skills.social);
+  const usedIds   = new Set();
+  function assignBest(sorted, building) {
+    const p = sorted.find(x => !usedIds.has(String(x.id)));
+    if (p) { assignPersonToBuilding(p.id, building); usedIds.add(String(p.id)); }
+  }
+  assignBest(byMedical, 'clinic');
+  assignBest(byCombat,  'security');
+  assignBest(bySocial,  'management');
+
+  addLog('Last Bastion çevrimiçi. 5 kişilik başlangıç ekibi hazır.', 'success');
+  addLog('Kapıda nöbetçi atamayı unutma! ÜS sekmesinden yapabilirsin.', 'warning');
+
+  STATE.gate.timer = 20;
+  STATE.resources = { food: 40, parts: 25, meds: 12, energy: 35, caps: 20 };
+
+  generateMissions();
+  updateUI();
+  renderActivities();
+  renderSocialTab();
+  lastTick = Date.now();
+  gameTick();
+}
+
+init();
+</script>
+</body>
+</html>
